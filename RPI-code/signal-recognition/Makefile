@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS = -Wall -Werror
+CFLAGS = -O0 -Wall -Werror
 LDFLAGS = 
 CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video
 

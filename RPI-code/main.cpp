@@ -17,6 +17,13 @@
 #include <errno.h>          // for error tracking
 #include <semaphore.h>      // for semaphores
 
+//includes for OpenCV -- changed by Tanmay
+#include "capture.h"
+#include "process.h"
+#include <iostream>
+#include <numeric>
+#include <opencv2/opencv.hpp>
+
 #define TRUE (1)
 #define FALSE (0)
 
@@ -68,6 +75,10 @@ pthread_attr_t rt_sched_attr[NUM_THREADS];
 
 sem_t semS1, semS2, semS3;
 struct timeval start_time_val;
+
+//changes by tanmay
+cv::VideoCapture cap(0); 
+int min_area, max_area;
 
 /************************************************************************************
  * @brief   :   Function to print the scheduler properties
@@ -220,7 +231,7 @@ void configure_service_scheduler(void)
 void *Sequencer(void *threadp)
 {
     struct timeval current_time_val;
-    struct timespec delay_time = {0,100000000}; // delay for 33.33 msec, 30 Hz For Q1
+    struct timespec delay_time = {0,500000000}; // delay for 33.33 msec, 30 Hz For Q1
     // Comment above line and uncomment below line for Q3	
     // struct timespec delay_time = {0,333333}; // delay for 0.33 msec, 3000 Hz For Q3
     struct timespec remaining_time;
@@ -271,13 +282,13 @@ void *Sequencer(void *threadp)
         // Release each service at a sub-rate of the generic sequencer rate
 
         // Servcie_1 = RT_MAX-1	@ 3 Hz
-        if((seqCnt % 10) == 0) sem_post(&semS1);
+        if((seqCnt % 2) == 0) sem_post(&semS1);
 
         // Service_2 = RT_MAX-2	@ 1 Hz
-        if((seqCnt % 10) == 0) sem_post(&semS2);
+        if((seqCnt % 2) == 0) sem_post(&semS2);
 
         // Service_3 = RT_MAX-3	@ 0.5 Hz
-        if((seqCnt % 10) == 0) sem_post(&semS3);
+        //if((seqCnt % 10) == 0) sem_post(&semS3);
 
         // // Service_4 = RT_MAX-2	@ 1 Hz
         // if((seqCnt % 30) == 0) sem_post(&semS4);
@@ -310,8 +321,11 @@ void *Service_1(void *threadp)
 
     while(1)
     {
+        //sem_wait(&semS1);
+        //printf("Service 1\n");  
+        capture_frame(cap); //changes by tanmay
+        sem_post(&semS2);
         sem_wait(&semS1);
-        printf("Service 1\n");   
     }
 
     pthread_exit((void *)0);
@@ -324,7 +338,9 @@ void *Service_2(void *threadp)
     while(1)
     {   
         sem_wait(&semS2);
-        printf("Service 2\n");
+        //printf("Service 2\n"); 
+        process_image(min_area, max_area); //changes by tanmay
+        sem_post(&semS1);
     }
 
     pthread_exit((void *)0);
@@ -351,7 +367,7 @@ static void configure_services(void)
     // threadParams[2].worker = Service_2;
     // threadParams[3].worker = Service_3;
 
-    for(i=0; i < NUM_SERVICES; i++)
+    for(i=1; i < NUM_SERVICES; i++)
     {
 
         CPU_ZERO(&threadcpu);
@@ -362,11 +378,11 @@ static void configure_services(void)
         rc=pthread_attr_setschedpolicy(&rt_sched_attr[i], SCHED_FIFO);
         //rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
 
-        rt_param[i].sched_priority = get_priority(i); 
+        rt_param[i].sched_priority = get_priority((service_t)i); 
         pthread_attr_setschedparam(&rt_sched_attr[i], &rt_param[i]);
 
         threadParams[i].threadIdx = i;
-        threadParams[i].worker = get_worker(i);
+        threadParams[i].worker = get_worker((service_t)i);
 
         rc=pthread_create(&threads[i],              // pointer to thread descriptor
                         &rt_sched_attr[i],          // use specific attributes
@@ -391,7 +407,28 @@ void semaphores_init()
     if (sem_init (&semS3, 0, 0)) { printf ("Failed to initialize S3 semaphore\n"); exit (-1); }
        
 }
-void main()
+
+//changes by tanmay------------------------
+/*
+ * @brief: initializes camera and starts capturing frames
+ * 
+ * */
+void camera_init()
+{
+    //cv::VideoCapture cap(0);
+    double width = cap.get(cv::CAP_PROP_FRAME_WIDTH);
+    double height = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+    cv::namedWindow("Result");
+    
+    //int min_area, max_area;
+    cv::createTrackbar("Minimum Area", "Result", &min_area, 100000);
+    cv::createTrackbar("Maximum Area", "Result", &max_area, 100000);
+    cv::setTrackbarPos("Minimum Area", "Result", 1000);
+    cv::setTrackbarPos("Maximum Area", "Result", 100000);
+}
+//-----------------------------------------------------
+
+int main()
 {
     int i;
     for (i=SCHEDULER; i<=SERVICE_2; i++)      
@@ -399,7 +436,8 @@ void main()
 
     printf("\n");
 
-
+    camera_init(); //tanmay
+    
     configure_service_scheduler();
 
     configure_services();
@@ -407,7 +445,12 @@ void main()
     for(i=0;i<NUM_SERVICES;i++)
         pthread_join(threads[i], NULL);
 
-
+    //~ while(1)
+    //~ {
+        //~ capture_frame(cap);
+        //~ process_image(min_area, max_area);
+    //~ }
    printf("\nTEST COMPLETE\n");
 
+   return 0;
 }

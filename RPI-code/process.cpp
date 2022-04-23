@@ -162,24 +162,16 @@ void process_image(int min_area, int max_area)
          {
              //cv::drawContours(frame, found[i], -1, colors[i], 2);
              //putTextAtCenter(frame, captions[i], colors[i]);
-             //~ clock_gettime(CLOCK_REALTIME, &end_process);
-             //~ delta_t(&end_process, &start_process, &time_dt_process);
+             clock_gettime(CLOCK_REALTIME, &end_process);
+             delta_t(&end_process, &start_process, &time_dt_process);
                     
-             //~ cout << "Process Time: " << time_dt_process.tv_sec << "sec " 
-                  //~ <<time_dt_process.tv_nsec/1000000 << "msec" 
-                  //~ << endl;
+             cout << "Process Time: " << time_dt_process.tv_sec << "sec " 
+                  <<time_dt_process.tv_nsec/1000000 << "msec" 
+                  << endl;
                     
              cout << captions[i] << endl;
          }
      }
-    clock_gettime(CLOCK_REALTIME, &end_process);
-     delta_t(&end_process, &start_process, &time_dt_process);
-            
-     cout << "Process Time: " << time_dt_process.tv_sec << "sec " 
-          <<time_dt_process.tv_nsec/1000000 << "msec" 
-          << endl;
-            
-     //cout << captions[i] << endl;
 
      cv::imshow("Result", frame); 
 
