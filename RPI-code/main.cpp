@@ -231,7 +231,7 @@ void configure_service_scheduler(void)
 void *Sequencer(void *threadp)
 {
     struct timeval current_time_val;
-    struct timespec delay_time = {0,500000000}; // delay for 33.33 msec, 30 Hz For Q1
+    struct timespec delay_time = {0,10000000}; // delay for 33.33 msec, 30 Hz For Q1
     // Comment above line and uncomment below line for Q3	
     // struct timespec delay_time = {0,333333}; // delay for 0.33 msec, 3000 Hz For Q3
     struct timespec remaining_time;
@@ -250,7 +250,7 @@ void *Sequencer(void *threadp)
         delay_cnt=0; residual=0.0;
         //printf("Sequencer\n");
         //gettimeofday(&current_time_val, (struct timezone *)0);
-        printf("Sequencer thread prior to delay @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+        //printf("Sequencer thread prior to delay @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
         do
         {
             rc=nanosleep(&delay_time, &remaining_time);
@@ -282,10 +282,12 @@ void *Sequencer(void *threadp)
         // Release each service at a sub-rate of the generic sequencer rate
 
         // Servcie_1 = RT_MAX-1	@ 3 Hz
-        if((seqCnt % 2) == 0) sem_post(&semS1);
+        if((seqCnt % 100) == 0) sem_post(&semS1);
 
         // Service_2 = RT_MAX-2	@ 1 Hz
-        if((seqCnt % 2) == 0) sem_post(&semS2);
+        //if((seqCnt % 52) == 0) 
+        //~ if(sem_trywait(&) == 0)
+        //~ sem_post(&semS2);
 
         // Service_3 = RT_MAX-3	@ 0.5 Hz
         //if((seqCnt % 10) == 0) sem_post(&semS3);
@@ -321,11 +323,11 @@ void *Service_1(void *threadp)
 
     while(1)
     {
-        //sem_wait(&semS1);
+        sem_wait(&semS1);
         //printf("Service 1\n");  
         capture_frame(cap); //changes by tanmay
         sem_post(&semS2);
-        sem_wait(&semS1);
+        //~ sem_wait(&semS1);
     }
 
     pthread_exit((void *)0);
@@ -340,7 +342,7 @@ void *Service_2(void *threadp)
         sem_wait(&semS2);
         //printf("Service 2\n"); 
         process_image(min_area, max_area); //changes by tanmay
-        sem_post(&semS1);
+        //sem_post(&semS1);
     }
 
     pthread_exit((void *)0);
@@ -367,7 +369,7 @@ static void configure_services(void)
     // threadParams[2].worker = Service_2;
     // threadParams[3].worker = Service_3;
 
-    for(i=1; i < NUM_SERVICES; i++)
+    for(i=0; i < NUM_SERVICES; i++)
     {
 
         CPU_ZERO(&threadcpu);
