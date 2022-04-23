@@ -5,6 +5,10 @@
 #include "process.h"
 #include "capture.h"
 
+
+
+color_t color = NONE;
+
 using namespace std;
 
 cv::Mat mask_img(cv::Mat& frame, int h, int error, int s_min, int v_min)
@@ -124,7 +128,31 @@ std::vector<Contour> findShapes(Shape shapeToFind, cv::Mat& grey, int min_area, 
 
     return found;
 }
-
+void setColor(int c)
+{
+    
+    switch(c)
+    {
+        case 1:
+            color = RED;
+            break;
+            
+        case 2:
+            color = YELLOW;
+            break;         
+        
+        case 3:
+            color = GREEN;
+            break;
+        default:
+            color = NONE;
+            break;
+    }
+}
+color_t getColor(void)
+{
+    return color;
+}
 void process_image(int min_area, int max_area)
 {
 	 struct timespec start_process, end_process;
@@ -138,25 +166,25 @@ void process_image(int min_area, int max_area)
      cv::Mat redMasked = mask_img(frame, 0, 15, 180, 128);
      cv::Mat yellowMasked = mask_img(frame, 30, 15, 120, 60);
      cv::Mat greenMasked = mask_img(frame, 60, 15, 90, 60);
-     cv::Mat greenInverse = 255 - greenMasked;
+     //cv::Mat greenInverse = 255 - greenMasked;
 
      //cv::imshow("Found Red", redMasked);
      //cv::imshow("Found Yellow", yellowMasked);
      //cv::imshow("Found Green", greenMasked);
      //cv::imshow("Found Green (Inverse)", greenInverse);
 
-     const static std::string captions[] = { "Red Light!", "Yellow Light!", "Green Light!", "Left Direction!", "Right Direction!" };
-     const static cv::Scalar colors[] = { cv::Scalar(0, 0, 255), cv::Scalar(131, 232, 252), cv::Scalar(0, 255, 0), cv::Scalar(0, 255, 0), cv::Scalar(0, 255, 0) };
+     const static std::string captions[] = { "Red Light!", "Yellow Light!", "Green Light!"};//, "Left Direction!", "Right Direction!" };
+     const static cv::Scalar colors[] = { cv::Scalar(0, 0, 255), cv::Scalar(131, 232, 252), cv::Scalar(0, 255, 0)};//, cv::Scalar(0, 255, 0), cv::Scalar(0, 255, 0) };
 
      std::vector<Contour> found[] = {
          findShapes(Shape::Circle, redMasked, min_area, max_area),
          findShapes(Shape::Circle, yellowMasked, min_area, max_area),
          findShapes(Shape::Circle, greenMasked, min_area, max_area),
-         findShapes(Shape::Left, greenInverse, min_area, max_area),
-         findShapes(Shape::Right, greenInverse, min_area, max_area)
+         //findShapes(Shape::Left, greenInverse, min_area, max_area),
+         //findShapes(Shape::Right, greenInverse, min_area, max_area)
      };
-
-     for (int i = 0; i < 5; ++i)
+        int i;
+     for ( i= 0; i < 3; ++i)
      {
          if (!found[i].empty())
          {
@@ -170,10 +198,15 @@ void process_image(int min_area, int max_area)
                   << endl;
                     
              cout << captions[i] << endl;
+             setColor(i+1);
+             break;
          }
      }
+    if(i == 3)
+    {
+        setColor(0);
+    }
+     //cv::imshow("Result", frame); 
 
-     cv::imshow("Result", frame); 
-
-     int key = cv::waitKey(1) & 0xff;
+     //int key = cv::waitKey(1) & 0xff;
 }

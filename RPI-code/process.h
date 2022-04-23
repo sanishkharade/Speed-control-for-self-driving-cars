@@ -16,4 +16,15 @@ Shape labelPolygon(Contour& c, double area);
 bool isConvex(Contour& c, double area);
 void process_image(int min_area, int max_area);
 
+typedef enum
+{
+	NONE,
+    RED,
+    YELLOW,
+    GREEN,
+    
+}color_t;
+
+void setColor(int c);
+color_t getColor(void);
 #endif /*_PROCESS_HPP_*/

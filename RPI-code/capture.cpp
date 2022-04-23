@@ -98,6 +98,7 @@ void capture_frame(cv::VideoCapture cap)
         clock_gettime(CLOCK_REALTIME, &end_frame);
         delta_t(&end_frame, &start_frame, &time_dt_frame);
             
+        cout << "==================================================\n"; 
         cout << "Frame Capture Time: " << time_dt_frame.tv_sec << "sec " 
              <<time_dt_frame.tv_nsec/1000000 << "msec" 
              << endl;

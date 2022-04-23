@@ -20,9 +20,12 @@
 //includes for OpenCV -- changed by Tanmay
 #include "capture.h"
 #include "process.h"
+#include "uart.h"
 #include <iostream>
 #include <numeric>
 #include <opencv2/opencv.hpp>
+
+using namespace std;
 
 #define TRUE (1)
 #define FALSE (0)
@@ -75,6 +78,8 @@ pthread_attr_t rt_sched_attr[NUM_THREADS];
 
 sem_t semS1, semS2, semS3;
 struct timeval start_time_val;
+
+struct timespec sched_start, sched_end, sched_delta;
 
 //changes by tanmay
 cv::VideoCapture cap(0); 
@@ -282,8 +287,11 @@ void *Sequencer(void *threadp)
         // Release each service at a sub-rate of the generic sequencer rate
 
         // Servcie_1 = RT_MAX-1	@ 3 Hz
-        if((seqCnt % 100) == 0) sem_post(&semS1);
-
+        if((seqCnt % 50) == 0) 
+        {
+            clock_gettime(CLOCK_REALTIME, &sched_start);
+            sem_post(&semS1);
+        }
         // Service_2 = RT_MAX-2	@ 1 Hz
         //if((seqCnt % 52) == 0) 
         //~ if(sem_trywait(&) == 0)
@@ -333,7 +341,18 @@ void *Service_1(void *threadp)
     pthread_exit((void *)0);
 }
 
-
+void test(void)
+{
+    int fd;
+    uint8_t s = getColor();
+    uint8_t r;
+    fd = open("/dev/ttyS0", O_RDWR);
+    write(fd, &s, 1);
+    
+    read(fd, &r, 1);
+    close(fd);
+    printf("r= %d\n", r);
+}
 void *Service_2(void *threadp)
 {
 
@@ -342,18 +361,27 @@ void *Service_2(void *threadp)
         sem_wait(&semS2);
         //printf("Service 2\n"); 
         process_image(min_area, max_area); //changes by tanmay
-        //sem_post(&semS1);
+        sem_post(&semS3);
     }
 
     pthread_exit((void *)0);
 }
 void *Service_3(void *threadp)
 {
-
+    char c;
     while(1)
     {   
         sem_wait(&semS3);
         printf("Service 3\n");
+        //~ UART_Transmit('a');
+        //~ c = UART_Receive();
+        //~ printf("%c\n", c);
+        test();
+        clock_gettime(CLOCK_REALTIME, &sched_end);
+        delta_t(&sched_end, &sched_start, &sched_delta);
+        cout << "Total Time: " << sched_delta.tv_sec << "sec " 
+        <<sched_delta.tv_nsec/1000000 << "msec" 
+        << endl;
     }
 
     pthread_exit((void *)0);
@@ -440,6 +468,8 @@ int main()
 
     camera_init(); //tanmay
     
+    //UART_Init();
+    
     configure_service_scheduler();
 
     configure_services();
@@ -452,6 +482,7 @@ int main()
         //~ capture_frame(cap);
         //~ process_image(min_area, max_area);
     //~ }
+    //test();
    printf("\nTEST COMPLETE\n");
 
    return 0;
