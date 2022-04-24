@@ -21,7 +21,9 @@
 #include "capture.h"
 #include "process.h"
 #include "uart.h"
+#include "calculate.h"
 #include <iostream>
+#include <sstream>
 #include <numeric>
 #include <opencv2/opencv.hpp>
 
@@ -29,13 +31,10 @@ using namespace std;
 
 #define TRUE (1)
 #define FALSE (0)
-
 #define USEC_PER_MSEC (1000)
 #define NANOSEC_PER_SEC (1000000000)
-
 #define NUM_CPU_CORES (1)
 #define NUM_THREADS (7+1)
-
 #define SCHED_POLICY SCHED_FIFO
 
 // For sched fifo this ranges from 0-99
@@ -48,7 +47,6 @@ void *Service_1(void *threadp);
 void *Service_2(void *threadp);
 void *Service_3(void *threadp);
 void *Service_4(void *threadp);
-
 
 static void print_scheduler(void);
 
@@ -85,9 +83,12 @@ struct timespec start_s1 = {0,0}, start_s2 = {0,0}, start_s3 = {0,0}, start_tota
                 end_s1 = {0,0}  , end_s2 = {0,0}  , end_s3 = {0,0}  , end_total = {0,0},
                 delta_s1 = {0,0}, delta_s2 = {0,0}, delta_s3 = {0,0}, delta_total = {0,0};
 
+
 //changes by tanmay
 cv::VideoCapture cap(0); 
 int min_area, max_area;
+
+float distance_cm = 0, computed_deadline = 0, time_to_stop_sec = 0;
 
 /************************************************************************************
  * @brief   :   Function to print the scheduler properties
@@ -326,12 +327,12 @@ void *Sequencer(void *threadp)
         // // Service_7 = RT_MIN	0.1 Hz
         // if((seqCnt % 300) == 0) sem_post(&semS7);
 
-        gettimeofday(&current_time_val, (struct timezone *)0);
+        //gettimeofday(&current_time_val, (struct timezone *)0);
         //printf("Sequencer release all sub-services @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
     } while(1);
 
-    sem_post(&semS1); sem_post(&semS2); sem_post(&semS3);
+    // sem_post(&semS1); sem_post(&semS2); sem_post(&semS3);
     // sem_post(&semS4); sem_post(&semS5); sem_post(&semS6);
     // sem_post(&semS7);
     // abortS1=TRUE; abortS2=TRUE; abortS3=TRUE;
@@ -410,6 +411,7 @@ void *Service_3(void *threadp)
 
 void *Service_4(void *threadp)
 {
+    static uint32_t total_time_msec;
     char c;
     while(1)
     {   
@@ -421,20 +423,34 @@ void *Service_4(void *threadp)
         delta_t(&end_total, &start_total, &delta_total);
         
         cout << "Service 1: Frame Capture: " << delta_s1.tv_sec << "sec " 
-             << delta_s1.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << delta_s1.tv_nsec/NSEC_PER_MSEC << " msec" 
              << endl;
              
         cout << "Service 2: Process Image: " << delta_s2.tv_sec << "sec " 
-             << delta_s2.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << delta_s2.tv_nsec/NSEC_PER_MSEC << " msec" 
              << endl;
              
         cout << "Service 3: Send Data: " << delta_s3.tv_sec << "sec " 
-             << delta_s3.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << delta_s3.tv_nsec/NSEC_PER_MSEC << " msec" 
              << endl;
         
         cout << "Total Time: " << delta_total.tv_sec << "sec " 
-             << delta_total.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << delta_total.tv_nsec/NSEC_PER_MSEC << " msec" 
              << endl;
+             
+        total_time_msec = (uint32_t)((delta_total.tv_sec*1000) + (delta_total.tv_nsec/NSEC_PER_MSEC));
+        
+        cout << "Observed time :" << total_time_msec << " msec" << endl;
+        cout << "Estimated deadline: " << computed_deadline*1000 << " msec" << endl;
+        
+        if (total_time_msec < (computed_deadline*1000))
+        {
+            cout << "Deadline Met!" << endl;
+        }
+        else
+        {
+            cout << "Deadline missed!" << endl;
+        }
         
         cout << "-------------------------------------------------------" << endl;
              
@@ -516,13 +532,37 @@ void camera_init()
 }
 //-----------------------------------------------------
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc < 2)
+    {
+        cout << "Please provide distance. Do sudo ./main <distance_in_cm>" << endl;
+        cout << "Insufficient arguments. Exiting..." << endl;
+        exit (EXIT_FAILURE);
+    }
+    else
+    {
+        sscanf(argv[1], "%f", &distance_cm);
+    }
+    
+    //cout << "Distance: " << distance_cm << endl;
+    
+    cout << "-----------------------------------------------------------------------" << endl;
+    
+    cout << "Assuming red light is detected " << distance_cm << " cm from Car's current position:" << endl;
+    cout << "Current speed of car: " << CURRENT_SPEED_OF_CAR << " cm/sec" << endl;
+    time_to_stop_sec = time_to_stop_in_sec (CURRENT_SPEED_OF_CAR, distance_cm);
+    cout << "Total time required for car to come to a full Stop: " << time_to_stop_sec << " seconds" << endl;
+    
+    computed_deadline = compute_deadline_to_complete_tasks (distance_cm);
+    cout << "Computed deadline for all tasks: " << computed_deadline << " seconds" << endl;
+    cout << "-----------------------------------------------------------------------" << endl;
+    
     int i;
-    for (i=SCHEDULER; i<=SERVICE_2; i++)      
-        printf("%d ", i);
+    //for (i=SCHEDULER; i<=SERVICE_2; i++)      
+    //    printf("%d ", i);
 
-    printf("\n");
+    //printf("\n");
 
     camera_init(); //tanmay
     
