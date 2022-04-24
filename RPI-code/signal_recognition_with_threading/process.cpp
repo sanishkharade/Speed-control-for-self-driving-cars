@@ -86,7 +86,7 @@ Shape labelPolygon(Contour& c, double area)
     
     return Shape::Undefined;
 }
-
+/*
 std::string shapeToString(Shape s)
 {
     switch (s)
@@ -106,7 +106,7 @@ std::string shapeToString(Shape s)
 
     return "Error";
 }
-
+*/
 std::vector<Contour> findShapes(Shape shapeToFind, cv::Mat& grey, int min_area, int max_area)
 {
     std::vector<Contour> contours;
