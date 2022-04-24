@@ -154,15 +154,8 @@ color_t getColor(void)
     return color;
 }
 void process_image(int min_area, int max_area)
-{
-	 struct timespec start_process, end_process;
-     struct timespec time_dt_process;
-    
-     start_process   = {0,0};
-     end_process     = {0,0};
-     time_dt_process = {0,0};
+{    
 	
-	 clock_gettime(CLOCK_REALTIME, &start_process);
      cv::Mat redMasked = mask_img(frame, 0, 15, 180, 128);
      cv::Mat yellowMasked = mask_img(frame, 30, 15, 120, 60);
      cv::Mat greenMasked = mask_img(frame, 60, 15, 90, 60);
@@ -190,12 +183,6 @@ void process_image(int min_area, int max_area)
          {
              //cv::drawContours(frame, found[i], -1, colors[i], 2);
              //putTextAtCenter(frame, captions[i], colors[i]);
-             clock_gettime(CLOCK_REALTIME, &end_process);
-             delta_t(&end_process, &start_process, &time_dt_process);
-                    
-             cout << "Process Time: " << time_dt_process.tv_sec << "sec " 
-                  <<time_dt_process.tv_nsec/NSEC_PER_MSEC << "msec" 
-                  << endl;
                     
              cout << captions[i] << endl;
              setColor(i+1);

@@ -47,6 +47,7 @@ void *Sequencer(void *threadp);
 void *Service_1(void *threadp);
 void *Service_2(void *threadp);
 void *Service_3(void *threadp);
+void *Service_4(void *threadp);
 
 
 static void print_scheduler(void);
@@ -65,6 +66,7 @@ typedef enum service
     SERVICE_1,
     SERVICE_2,
     SERVICE_3,
+    SERVICE_4,
     NUM_SERVICES
 }service_t;
 
@@ -76,10 +78,12 @@ threadParams_t threadParams[NUM_THREADS];
 static struct sched_param rt_param[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
 
-sem_t semS1, semS2, semS3;
+sem_t semS1, semS2, semS3, semS4;
 struct timeval start_time_val;
 
-struct timespec sched_start, sched_end, sched_delta;
+struct timespec start_s1 = {0,0}, start_s2 = {0,0}, start_s3 = {0,0}, start_total = {0,0},
+                end_s1 = {0,0}  , end_s2 = {0,0}  , end_s3 = {0,0}  , end_total = {0,0},
+                delta_s1 = {0,0}, delta_s2 = {0,0}, delta_s3 = {0,0}, delta_total = {0,0};
 
 //changes by tanmay
 cv::VideoCapture cap(0); 
@@ -146,6 +150,11 @@ priority_t get_priority(service_t t)
             return rt_max_prio - 3;
             //return 
             break;
+            
+        case SERVICE_4:
+            return rt_max_prio - 4;
+            //return 
+            break;
 
         default:
             printf("ERROR: No such task\n");
@@ -174,6 +183,11 @@ worker_t get_worker(service_t t)
 
         case SERVICE_3:
             return Service_3;
+            //return 
+            break;
+        
+        case SERVICE_4:
+            return Service_4;
             //return 
             break;
 
@@ -289,7 +303,7 @@ void *Sequencer(void *threadp)
         // Servcie_1 = RT_MAX-1	@ 3 Hz
         if((seqCnt % 50) == 0) 
         {
-            clock_gettime(CLOCK_REALTIME, &sched_start);
+            clock_gettime(CLOCK_REALTIME, &start_total);
             sem_post(&semS1);
         }
         // Service_2 = RT_MAX-2	@ 1 Hz
@@ -332,10 +346,13 @@ void *Service_1(void *threadp)
     while(1)
     {
         sem_wait(&semS1);
-        //printf("Service 1\n");  
-        capture_frame(cap); //changes by tanmay
+        
+        //changes by Tanmay
+        clock_gettime(CLOCK_REALTIME, &start_s1);
+        capture_frame(cap); 
+        clock_gettime(CLOCK_REALTIME, &end_s1);
+        
         sem_post(&semS2);
-        //~ sem_wait(&semS1);
     }
 
     pthread_exit((void *)0);
@@ -359,8 +376,12 @@ void *Service_2(void *threadp)
     while(1)
     {   
         sem_wait(&semS2);
-        //printf("Service 2\n"); 
-        process_image(min_area, max_area); //changes by tanmay
+
+        //changes by tanmay
+        clock_gettime(CLOCK_REALTIME, &start_s2);
+        process_image(min_area, max_area); 
+        clock_gettime(CLOCK_REALTIME, &end_s2);
+        
         sem_post(&semS3);
     }
 
@@ -372,20 +393,56 @@ void *Service_3(void *threadp)
     while(1)
     {   
         sem_wait(&semS3);
-        printf("Service 3\n");
+
+        clock_gettime(CLOCK_REALTIME, &start_s3);
         //~ UART_Transmit('a');
         //~ c = UART_Receive();
         //~ printf("%c\n", c);
         test();
-        clock_gettime(CLOCK_REALTIME, &sched_end);
-        delta_t(&sched_end, &sched_start, &sched_delta);
-        cout << "Total Time: " << sched_delta.tv_sec << "sec " 
-        <<sched_delta.tv_nsec/NSEC_PER_MSEC << "msec" 
-        << endl;
+        clock_gettime(CLOCK_REALTIME, &end_s3);
+        clock_gettime(CLOCK_REALTIME, &end_total);
+        
+        sem_post(&semS4);
     }
 
     pthread_exit((void *)0);
 }
+
+void *Service_4(void *threadp)
+{
+    char c;
+    while(1)
+    {   
+        sem_wait(&semS4);
+
+        delta_t(&end_s1, &start_s1, &delta_s1);
+        delta_t(&end_s2, &start_s2, &delta_s2);
+        delta_t(&end_s3, &start_s3, &delta_s3);
+        delta_t(&end_total, &start_total, &delta_total);
+        
+        cout << "Service 1: Frame Capture: " << delta_s1.tv_sec << "sec " 
+             << delta_s1.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << endl;
+             
+        cout << "Service 2: Process Image: " << delta_s2.tv_sec << "sec " 
+             << delta_s2.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << endl;
+             
+        cout << "Service 3: Send Data: " << delta_s3.tv_sec << "sec " 
+             << delta_s3.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << endl;
+        
+        cout << "Total Time: " << delta_total.tv_sec << "sec " 
+             << delta_total.tv_nsec/NSEC_PER_MSEC << "msec" 
+             << endl;
+        
+        cout << "-------------------------------------------------------" << endl;
+             
+    }
+
+    pthread_exit((void *)0);
+}
+
 static void configure_services(void)
 {
     int i, rc;
@@ -435,6 +492,7 @@ void semaphores_init()
     if (sem_init (&semS1, 0, 0)) { printf ("Failed to initialize S1 semaphore\n"); exit (-1); }
     if (sem_init (&semS2, 0, 0)) { printf ("Failed to initialize S2 semaphore\n"); exit (-1); }
     if (sem_init (&semS3, 0, 0)) { printf ("Failed to initialize S3 semaphore\n"); exit (-1); }
+    if (sem_init (&semS4, 0, 0)) { printf ("Failed to initialize S4 semaphore\n"); exit (-1); }
        
 }
 
@@ -475,15 +533,11 @@ int main()
     configure_services();
     
     for(i=0;i<NUM_SERVICES;i++)
+    {
         pthread_join(threads[i], NULL);
-
-    //~ while(1)
-    //~ {
-        //~ capture_frame(cap);
-        //~ process_image(min_area, max_area);
-    //~ }
-    //test();
-   printf("\nTEST COMPLETE\n");
+    }
+    
+    printf("\nTEST COMPLETE\n");
 
    return 0;
 }

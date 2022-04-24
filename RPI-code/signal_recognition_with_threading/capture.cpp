@@ -74,26 +74,9 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
 
 void capture_frame(cv::VideoCapture cap)
 {
-    struct timespec start_frame, end_frame;
-    struct timespec time_dt_frame;
     
-    start_frame     = {0,0};
-    end_frame       = {0,0};
-    time_dt_frame   = {0,0};
-    
-    clock_gettime(CLOCK_REALTIME, &start_frame);
     frame_flag = cap.read(frame);
-    if (frame_flag)
-    {
-        clock_gettime(CLOCK_REALTIME, &end_frame);
-        delta_t(&end_frame, &start_frame, &time_dt_frame);
-            
-        cout << "==================================================\n"; 
-        cout << "Frame Capture Time: " << time_dt_frame.tv_sec << "sec " 
-             <<time_dt_frame.tv_nsec/NSEC_PER_MSEC << "msec" 
-             << endl;
-    }
-    else
+    if (!frame_flag)
     {
         cout << "Frame capture failed! Entering infinite loop...." << endl;
         while(1);
