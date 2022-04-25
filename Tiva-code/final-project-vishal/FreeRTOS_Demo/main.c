@@ -26,7 +26,7 @@
 // For UART
 #include "driverlib/uart.h"
 #include "driverlib/gpio.h"
-#include "inc/hw_ints.h"
+//#include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
 
 
@@ -41,7 +41,7 @@
 #include "driverlib/pwm.h"
 
 // For Timer
-//#include "inc/tm4c1294ncpdt.h"
+#include "inc/tm4c1294ncpdt.h"
 #include "inc/hw_types.h"
 #include "driverlib/interrupt.h"
 #include "driverlib/timer.h"
@@ -58,6 +58,15 @@
 #define TIMER_FREQ                  2500
 uint32_t ui32Period,pom = 0;
 
+// For UDM
+#define MAX_TIME 7500
+float measureD(void);
+uint32_t counter =0;
+float distance=0;
+#define ECHO (1U<<5) //PA5(INput)
+#define TRIGGER (1U<<4) //PA4(OUTPUT)
+#define BLUE_LED (1U<<0)//PN0 onboard Blue LED
+
 
 // Demo Task declarations
 void LEDTask(void *pvParameters);
@@ -65,6 +74,10 @@ void SerialTask(void *pvParameters);
 void MOTORTask(void *pvParameters);
 void pwm_control(void);
 void run_motor_speed(int level);
+void delay_Microsecond(uint32_t time);
+void udm_test(void);
+void udm_init(void);
+
 
 
 uint32_t g_ui32SysClock;
@@ -323,11 +336,15 @@ int main(void)
 
     PWM_init();
 
+    /*Test*/
+    udm_init();
+
+    /*Test*/
+
     /*--Vishals part--*/
 
     // Initialize the GPIO pins for the Launchpad
     PinoutSet(false, false);
-
 
     // Create tasks
     xTaskCreate(LEDTask, (const portCHAR *)"LEDs",
@@ -343,6 +360,98 @@ int main(void)
 
     // Code should never reach this point
     return 0;
+}
+
+float measureD(void){
+
+////    GPIOA->DATA &=~TRIGGER;
+//    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
+////    delay_Microsecond(10);
+//    delay_Microsecond(10);
+////    GPIOA->DATA |= TRIGGER;
+//    GPIO_PORTA_AHB_DATA_R |= TRIGGER;
+////    delay_Microsecond(10);
+//    delay_Microsecond(10);
+////    GPIOA->DATA &=~TRIGGER;
+//    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
+////    counter = 0;
+//    counter = 0;
+////    while((GPIOA->DATA &ECHO)==0)    {}
+//    while((GPIO_PORTA_AHB_DATA_R & ECHO) == 0){}
+////    while(((GPIOA->DATA &ECHO )!=0) &(counter < MAX_TIME))
+////    {
+////    counter++;
+////    delay_Microsecond(1);
+////    }
+//    while(((GPIO_PORTA_AHB_DATA_R & ECHO )!=0) & (counter < MAX_TIME)){
+//        counter++;
+//        delay_Microsecond(1);
+//    }
+////    distance = (float)counter*(float)0.0170000;
+//    distance = (float)counter*(float)0.0170000;
+//
+//    return distance;
+}
+
+void udm_init(void){
+
+    //SYSCTL->RCGCGPIO |=(1U<<0); //Enable clock for PORTA
+    SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R0;
+//    SYSCTL->RCGCGPIO |=(1U<<5); //Enable clock for PORTN
+    SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R12;
+//    GPIOA->DIR =TRIGGER;
+    GPIO_PORTA_AHB_DIR_R = TRIGGER;
+
+//    GPIOF->DIR =BLUE_LED;
+    GPIO_PORTN_DIR_R = BLUE_LED;
+
+//    GPIOA->DEN |=(ECHO)|(TRIGGER);
+    GPIO_PORTA_AHB_DEN_R |= (ECHO)|(TRIGGER);
+//    GPIOF->DEN |= BLUE_LED;
+    GPIO_PORTN_DEN_R |= BLUE_LED;
+
+    /*Test*/
+    GPIO_PORTN_DATA_R |= BLUE_LED;
+    /*Test*/
+//
+//    while(1){
+//
+//        /*Test*/
+//        GPIO_PORTN_DATA_R |= BLUE_LED;
+//
+//        delay_Microsecond(1000000);
+//
+//        GPIO_PORTN_DATA_R &= ~BLUE_LED;
+//
+//        delay_Microsecond(1000000);
+//        /*Test*/
+//////
+////        measureD();
+////        if(measureD() < 10.0){
+//////         GPIOF->DATA |=BLUE_LED;
+////            GPIO_PORTN_DATA_R |= BLUE_LED;
+////         }
+////        else{
+//////        GPIOF->DATA &=~BLUE_LED;
+////            GPIO_PORTN_DATA_R &= ~BLUE_LED;
+////         }
+////        delay_Microsecond(10);
+//    }
+
+}
+
+void udm_test(void){
+
+    /*Test*/
+    GPIO_PORTN_DATA_R |= BLUE_LED;
+
+    delay_Microsecond(1000000);
+
+    GPIO_PORTN_DATA_R &= ~BLUE_LED;
+
+    delay_Microsecond(1000000);
+    /*Test*/
+
 }
 
 
@@ -370,12 +479,12 @@ void MOTORTask(void *pvParameters){
     for(;;){
 
         pwm_control();
+        udm_test();
 
     }
 
 }
 
-//Test comment
 uint8_t speed = 5;
 
 void pwm_control(void){
@@ -449,7 +558,6 @@ void LEDTask(void *pvParameters)
 //        LEDWrite(0x0F, 0x08);
 //        vTaskDelay(1000);
 
-        /*Adding pwm control temporarily here*/
     }
 }
 
@@ -487,6 +595,36 @@ void __error__(char *pcFilename, uint32_t ui32Line)
     }
 }
 
+void delay_Microsecond(uint32_t time)
+{
 
+//    int i;
+////    SYSCTL->RCGCTIMER |=(1U<<1);
+//    SYSCTL_RCGCTIMER_R |= 2;
+//
+//////    TIMER1->CTL=0;
+//    TIMER1_CTL_R = 0;
+////    TIMER1->CFG=0x04;
+//    TIMER1_CFG_R = 0x04;//16 bit
+////    TIMER1->TAMR=0x02;
+//    TIMER1_TAMR_R = 0x02;//periodic timer mode
+//
+////    TIMER1->TAILR= 16-1;
+//    TIMER1_TAILR_R = 16000 - 1;//load value
+////    TIMER1->ICR =0x1;
+//    TIMER1_ICR_R = 0x1; //clear interrupt
+////    TIMER1->CTL |=0x01;
+//    TIMER1_CTL_R |= 0x01;
+//
+////    for(i=0;i<time;i++){
+////        while((TIMER1->RIS & 0x1)==0);
+////        TIMER1->ICR = 0x1;
+////    }
+//    for(i=0;i<time;i++){
+//        while((TIMER1_RIS_R & 0x1)==0);
+//        TIMER1_ICR_R = 0x1;
+//    }
+
+}
 
 
