@@ -53,10 +53,10 @@
 
 #define SERIAL_TASK_STACK_SIZE    (configMINIMAL_STACK_SIZE)
 #define LED_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE)
-#define MOTOR_TASK_STACK_SIZE     (configMINIMAL_STACK_SIZE)
-#define SCALING_FACTOR              1000 //for 1ms timer
-#define TIMER_FREQ                  2500
-uint32_t ui32Period,pom = 0;
+#define MOTOR_TASK_STACK_SIZE     500//(configMINIMAL_STACK_SIZE)
+#define SCALING_FACTOR              1000000//1000 //for 1us timer
+#define TIMER_FREQ                  2000000//2500
+uint32_t ui32Period, pom = 0, uom = 0;
 
 // For UDM
 #define MAX_TIME 7500
@@ -65,7 +65,7 @@ uint32_t counter =0;
 float distance=0;
 #define ECHO (1U<<5) //PA5(INput)
 #define TRIGGER (1U<<4) //PA4(OUTPUT)
-#define BLUE_LED (1U<<0)//PN0 onboard Blue LED
+#define BLUE_LED (1U<<3)//PN3 onboard Blue LED
 
 
 // Demo Task declarations
@@ -328,6 +328,9 @@ int main(void)
     g_pMotorQueue = xQueueCreate(2, sizeof(uint32_t));
 
     /*--Vishals part--*/
+
+    //udm_init();
+
     vHWTimerInit();
 
     //ConfigureUART();
@@ -337,7 +340,7 @@ int main(void)
     PWM_init();
 
     /*Test*/
-    udm_init();
+
 
     /*Test*/
 
@@ -364,33 +367,33 @@ int main(void)
 
 float measureD(void){
 
-////    GPIOA->DATA &=~TRIGGER;
-//    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
-////    delay_Microsecond(10);
+//    GPIOA->DATA &=~TRIGGER;
+    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
 //    delay_Microsecond(10);
-////    GPIOA->DATA |= TRIGGER;
-//    GPIO_PORTA_AHB_DATA_R |= TRIGGER;
-////    delay_Microsecond(10);
+    delay_Microsecond(10);
+//    GPIOA->DATA |= TRIGGER;
+    GPIO_PORTA_AHB_DATA_R |= TRIGGER;
 //    delay_Microsecond(10);
-////    GPIOA->DATA &=~TRIGGER;
-//    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
-////    counter = 0;
+    delay_Microsecond(10);
+//    GPIOA->DATA &=~TRIGGER;
+    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
 //    counter = 0;
-////    while((GPIOA->DATA &ECHO)==0)    {}
-//    while((GPIO_PORTA_AHB_DATA_R & ECHO) == 0){}
-////    while(((GPIOA->DATA &ECHO )!=0) &(counter < MAX_TIME))
-////    {
-////    counter++;
-////    delay_Microsecond(1);
-////    }
-//    while(((GPIO_PORTA_AHB_DATA_R & ECHO )!=0) & (counter < MAX_TIME)){
-//        counter++;
-//        delay_Microsecond(1);
+    counter = 0;
+//    while((GPIOA->DATA &ECHO)==0)    {}
+    while((GPIO_PORTA_AHB_DATA_R & ECHO) == 0){}
+//    while(((GPIOA->DATA &ECHO )!=0) &(counter < MAX_TIME))
+//    {
+//    counter++;
+//    delay_Microsecond(1);
 //    }
-////    distance = (float)counter*(float)0.0170000;
+    while(((GPIO_PORTA_AHB_DATA_R & ECHO )!=0) & (counter < MAX_TIME)){
+        counter++;
+        delay_Microsecond(1);
+    }
 //    distance = (float)counter*(float)0.0170000;
-//
-//    return distance;
+    distance = (float)counter*(float)0.0170000;
+
+    return distance;
 }
 
 void udm_init(void){
@@ -413,43 +416,31 @@ void udm_init(void){
     /*Test*/
     GPIO_PORTN_DATA_R |= BLUE_LED;
     /*Test*/
-//
-//    while(1){
-//
-//        /*Test*/
-//        GPIO_PORTN_DATA_R |= BLUE_LED;
-//
-//        delay_Microsecond(1000000);
-//
-//        GPIO_PORTN_DATA_R &= ~BLUE_LED;
-//
-//        delay_Microsecond(1000000);
-//        /*Test*/
-//////
-////        measureD();
-////        if(measureD() < 10.0){
-//////         GPIOF->DATA |=BLUE_LED;
-////            GPIO_PORTN_DATA_R |= BLUE_LED;
-////         }
-////        else{
-//////        GPIOF->DATA &=~BLUE_LED;
-////            GPIO_PORTN_DATA_R &= ~BLUE_LED;
-////         }
-////        delay_Microsecond(10);
-//    }
 
 }
 
 void udm_test(void){
 
+    measureD();
+
+    if(measureD() < 10.0){
+//         GPIOF->DATA |=BLUE_LED;
+        GPIO_PORTN_DATA_R |= BLUE_LED;
+     }
+    else{
+//        GPIOF->DATA &=~BLUE_LED;
+        GPIO_PORTN_DATA_R &= ~BLUE_LED;
+     }
+    delay_Microsecond(10);
+
     /*Test*/
-    GPIO_PORTN_DATA_R |= BLUE_LED;
-
-    delay_Microsecond(1000000);
-
-    GPIO_PORTN_DATA_R &= ~BLUE_LED;
-
-    delay_Microsecond(1000000);
+//    GPIO_PORTN_DATA_R |= BLUE_LED;
+//
+//    delay_Microsecond(1000000);
+//
+//    GPIO_PORTN_DATA_R &= ~BLUE_LED;
+//
+//    delay_Microsecond(1000000);
     /*Test*/
 
 }
@@ -457,6 +448,7 @@ void udm_test(void){
 
 void Timer0AIntHandler(void)
 {
+    uom++;
     TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
     pom++;
 
@@ -479,7 +471,7 @@ void MOTORTask(void *pvParameters){
     for(;;){
 
         pwm_control();
-        udm_test();
+        //udm_test();
 
     }
 
@@ -597,33 +589,40 @@ void __error__(char *pcFilename, uint32_t ui32Line)
 
 void delay_Microsecond(uint32_t time)
 {
+    uom = 0;
+    uint32_t t1 = uom, t2 = uom;
 
-//    int i;
-////    SYSCTL->RCGCTIMER |=(1U<<1);
-//    SYSCTL_RCGCTIMER_R |= 2;
-//
-//////    TIMER1->CTL=0;
-//    TIMER1_CTL_R = 0;
-////    TIMER1->CFG=0x04;
-//    TIMER1_CFG_R = 0x04;//16 bit
-////    TIMER1->TAMR=0x02;
-//    TIMER1_TAMR_R = 0x02;//periodic timer mode
-//
-////    TIMER1->TAILR= 16-1;
-//    TIMER1_TAILR_R = 16000 - 1;//load value
-////    TIMER1->ICR =0x1;
-//    TIMER1_ICR_R = 0x1; //clear interrupt
-////    TIMER1->CTL |=0x01;
-//    TIMER1_CTL_R |= 0x01;
-//
-////    for(i=0;i<time;i++){
-////        while((TIMER1->RIS & 0x1)==0);
-////        TIMER1->ICR = 0x1;
-////    }
+    while((t2 - t1) < time){
+        t2 = uom;
+    }
+
+/*
+    int i;
+//    SYSCTL->RCGCTIMER |=(1U<<1);
+    SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R3;
+
+////    TIMER1->CTL=0;
+    TIMER3_CTL_R = 0;
+//    TIMER1->CFG=0x04;
+    TIMER3_CFG_R = 0x04;//16 bit
+//    TIMER1->TAMR=0x02;
+    TIMER3_TAMR_R = 0x02;//periodic timer mode
+
+//    TIMER1->TAILR= 16-1;
+    TIMER3_TAILR_R = 16000 - 1;//load value
+//    TIMER1->ICR =0x1;
+    TIMER3_ICR_R = 0x1; //clear interrupt
+//    TIMER1->CTL |=0x01;
+    TIMER3_CTL_R |= 0x01;
+
 //    for(i=0;i<time;i++){
-//        while((TIMER1_RIS_R & 0x1)==0);
-//        TIMER1_ICR_R = 0x1;
+//        while((TIMER1->RIS & 0x1)==0);
+//        TIMER1->ICR = 0x1;
 //    }
+    for(i=0;i<time;i++){
+        while((TIMER3_RIS_R & 0x1)==0);
+        TIMER3_ICR_R = 0x1;
+    }*/
 
 }
 
