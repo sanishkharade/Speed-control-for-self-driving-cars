@@ -53,10 +53,10 @@
 
 #define SERIAL_TASK_STACK_SIZE    (configMINIMAL_STACK_SIZE)
 #define LED_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE)
-#define MOTOR_TASK_STACK_SIZE     500//(configMINIMAL_STACK_SIZE)
-#define SCALING_FACTOR              1000000//1000 //for 1us timer
-#define TIMER_FREQ                  2000000//2500
-uint32_t ui32Period, pom = 0, uom = 0;
+#define MOTOR_TASK_STACK_SIZE     (configMINIMAL_STACK_SIZE)
+#define SCALING_FACTOR              1000 //for 1ms timer
+#define TIMER_FREQ                  2500
+uint32_t ui32Period, pom = 0;
 
 // For UDM
 #define MAX_TIME 7500
@@ -329,8 +329,6 @@ int main(void)
 
     /*--Vishals part--*/
 
-    //udm_init();
-
     vHWTimerInit();
 
     //ConfigureUART();
@@ -338,11 +336,6 @@ int main(void)
     //UARTprintf("Starting program...\n");
 
     PWM_init();
-
-    /*Test*/
-
-
-    /*Test*/
 
     /*--Vishals part--*/
 
@@ -365,90 +358,11 @@ int main(void)
     return 0;
 }
 
-float measureD(void){
 
-//    GPIOA->DATA &=~TRIGGER;
-    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
-//    delay_Microsecond(10);
-    delay_Microsecond(10);
-//    GPIOA->DATA |= TRIGGER;
-    GPIO_PORTA_AHB_DATA_R |= TRIGGER;
-//    delay_Microsecond(10);
-    delay_Microsecond(10);
-//    GPIOA->DATA &=~TRIGGER;
-    GPIO_PORTA_AHB_DATA_R &= ~TRIGGER;
-//    counter = 0;
-    counter = 0;
-//    while((GPIOA->DATA &ECHO)==0)    {}
-    while((GPIO_PORTA_AHB_DATA_R & ECHO) == 0){}
-//    while(((GPIOA->DATA &ECHO )!=0) &(counter < MAX_TIME))
-//    {
-//    counter++;
-//    delay_Microsecond(1);
-//    }
-    while(((GPIO_PORTA_AHB_DATA_R & ECHO )!=0) & (counter < MAX_TIME)){
-        counter++;
-        delay_Microsecond(1);
-    }
-//    distance = (float)counter*(float)0.0170000;
-    distance = (float)counter*(float)0.0170000;
-
-    return distance;
-}
-
-void udm_init(void){
-
-    //SYSCTL->RCGCGPIO |=(1U<<0); //Enable clock for PORTA
-    SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R0;
-//    SYSCTL->RCGCGPIO |=(1U<<5); //Enable clock for PORTN
-    SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R12;
-//    GPIOA->DIR =TRIGGER;
-    GPIO_PORTA_AHB_DIR_R = TRIGGER;
-
-//    GPIOF->DIR =BLUE_LED;
-    GPIO_PORTN_DIR_R = BLUE_LED;
-
-//    GPIOA->DEN |=(ECHO)|(TRIGGER);
-    GPIO_PORTA_AHB_DEN_R |= (ECHO)|(TRIGGER);
-//    GPIOF->DEN |= BLUE_LED;
-    GPIO_PORTN_DEN_R |= BLUE_LED;
-
-    /*Test*/
-    GPIO_PORTN_DATA_R |= BLUE_LED;
-    /*Test*/
-
-}
-
-void udm_test(void){
-
-    measureD();
-
-    if(measureD() < 10.0){
-//         GPIOF->DATA |=BLUE_LED;
-        GPIO_PORTN_DATA_R |= BLUE_LED;
-     }
-    else{
-//        GPIOF->DATA &=~BLUE_LED;
-        GPIO_PORTN_DATA_R &= ~BLUE_LED;
-     }
-    delay_Microsecond(10);
-
-    /*Test*/
-//    GPIO_PORTN_DATA_R |= BLUE_LED;
-//
-//    delay_Microsecond(1000000);
-//
-//    GPIO_PORTN_DATA_R &= ~BLUE_LED;
-//
-//    delay_Microsecond(1000000);
-    /*Test*/
-
-}
 
 
 void Timer0AIntHandler(void)
 {
-    uom++;
     TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
     pom++;
 
@@ -585,45 +499,6 @@ void __error__(char *pcFilename, uint32_t ui32Line)
     while (1)
     {
     }
-}
-
-void delay_Microsecond(uint32_t time)
-{
-    uom = 0;
-    uint32_t t1 = uom, t2 = uom;
-
-    while((t2 - t1) < time){
-        t2 = uom;
-    }
-
-/*
-    int i;
-//    SYSCTL->RCGCTIMER |=(1U<<1);
-    SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R3;
-
-////    TIMER1->CTL=0;
-    TIMER3_CTL_R = 0;
-//    TIMER1->CFG=0x04;
-    TIMER3_CFG_R = 0x04;//16 bit
-//    TIMER1->TAMR=0x02;
-    TIMER3_TAMR_R = 0x02;//periodic timer mode
-
-//    TIMER1->TAILR= 16-1;
-    TIMER3_TAILR_R = 16000 - 1;//load value
-//    TIMER1->ICR =0x1;
-    TIMER3_ICR_R = 0x1; //clear interrupt
-//    TIMER1->CTL |=0x01;
-    TIMER3_CTL_R |= 0x01;
-
-//    for(i=0;i<time;i++){
-//        while((TIMER1->RIS & 0x1)==0);
-//        TIMER1->ICR = 0x1;
-//    }
-    for(i=0;i<time;i++){
-        while((TIMER3_RIS_R & 0x1)==0);
-        TIMER3_ICR_R = 0x1;
-    }*/
-
 }
 
 
