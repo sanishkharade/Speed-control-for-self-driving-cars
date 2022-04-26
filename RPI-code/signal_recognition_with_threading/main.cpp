@@ -362,14 +362,31 @@ void *Service_1(void *threadp)
 void test(void)
 {
     int fd;
-    uint8_t s = getColor();
+    int rv = 0;
+    uint8_t s = 2; // getColor();
     uint8_t r;
-    fd = open("/dev/ttyS0", O_RDWR);
-    write(fd, &s, 1);
     
-    read(fd, &r, 1);
+    cout << "Opening file" << endl;
+    fd = open("/dev/ttyS0", O_RDWR);
+    if (fd == -1)
+        perror("error: open");
+        
+    cout << "Starting to write" << endl;
+    rv = write(fd, &s, 1);
+    if (rv == -1)
+        perror("error: write");
+    
+    cout << "Bytes written: " << rv << endl;
+    
+    rv = read(fd, &r, 1);
+    if (rv == -1)
+        perror("error: read");
+    
+    cout << "Bytes read: " << rv << endl;
+    
     close(fd);
-    printf("r= %d\n", r);
+    cout << "s = " << s << endl;
+    cout << "r = " << r << endl;
 }
 void *Service_2(void *threadp)
 {
@@ -564,18 +581,19 @@ int main(int argc, char** argv)
 
     //printf("\n");
 
-    camera_init(); //tanmay
+    //~ camera_init(); //tanmay
     
-    //UART_Init();
+    //~ //UART_Init();
     
-    configure_service_scheduler();
+    //~ configure_service_scheduler();
 
-    configure_services();
+    //~ configure_services();
     
-    for(i=0;i<NUM_SERVICES;i++)
-    {
-        pthread_join(threads[i], NULL);
-    }
+    //~ for(i=0;i<NUM_SERVICES;i++)
+    //~ {
+        //~ pthread_join(threads[i], NULL);
+    //~ }
+    test();
     
     printf("\nTEST COMPLETE\n");
 
