@@ -1,3 +1,4 @@
+//**************************My code******************************
 /* FreeRTOS 10 Tiva Demo
  *
  * main.c
@@ -26,7 +27,7 @@
 // For UART
 #include "driverlib/uart.h"
 #include "driverlib/gpio.h"
-//#include "inc/hw_ints.h"
+#include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
 
 
@@ -41,7 +42,7 @@
 #include "driverlib/pwm.h"
 
 // For Timer
-#include "inc/tm4c1294ncpdt.h"
+//#include "inc/tm4c1294ncpdt.h"
 #include "inc/hw_types.h"
 #include "driverlib/interrupt.h"
 #include "driverlib/timer.h"
@@ -56,16 +57,7 @@
 #define MOTOR_TASK_STACK_SIZE     (configMINIMAL_STACK_SIZE)
 #define SCALING_FACTOR              1000 //for 1ms timer
 #define TIMER_FREQ                  2500
-uint32_t ui32Period, pom = 0;
-
-// For UDM
-#define MAX_TIME 7500
-float measureD(void);
-uint32_t counter =0;
-float distance=0;
-#define ECHO (1U<<5) //PA5(INput)
-#define TRIGGER (1U<<4) //PA4(OUTPUT)
-#define BLUE_LED (1U<<3)//PN3 onboard Blue LED
+uint32_t ui32Period,pom = 0;
 
 
 // Demo Task declarations
@@ -74,10 +66,6 @@ void SerialTask(void *pvParameters);
 void MOTORTask(void *pvParameters);
 void pwm_control(void);
 void run_motor_speed(int level);
-void delay_Microsecond(uint32_t time);
-void udm_test(void);
-void udm_init(void);
-
 
 
 uint32_t g_ui32SysClock;
@@ -128,7 +116,7 @@ UART3IntHandler(void)
         //
         c =  MAP_UARTCharGetNonBlocking(UART3_BASE);
         //printf("c = %d\n",c);
-        //MAP_UARTCharPutNonBlocking(UART3_BASE, c+1);
+        //MAP_UARTCharPutNonBlocking(UART3_BASE, c);
         //MAP_UARTCharPutNonBlocking(UART3_BASE, MAP_UARTCharGetNonBlocking(UART3_BASE));
         //
         // Blink the LED to show a character transfer is occuring.
@@ -328,7 +316,6 @@ int main(void)
     g_pMotorQueue = xQueueCreate(2, sizeof(uint32_t));
 
     /*--Vishals part--*/
-
     vHWTimerInit();
 
     //ConfigureUART();
@@ -341,6 +328,7 @@ int main(void)
 
     // Initialize the GPIO pins for the Launchpad
     PinoutSet(false, false);
+
 
     // Create tasks
     xTaskCreate(LEDTask, (const portCHAR *)"LEDs",
@@ -357,8 +345,6 @@ int main(void)
     // Code should never reach this point
     return 0;
 }
-
-
 
 
 void Timer0AIntHandler(void)
@@ -385,12 +371,12 @@ void MOTORTask(void *pvParameters){
     for(;;){
 
         pwm_control();
-        //udm_test();
 
     }
 
 }
 
+//Test comment
 uint8_t speed = 5;
 
 void pwm_control(void){
@@ -406,7 +392,7 @@ void pwm_control(void){
             speed = 5;
 
         speed++;
-        if(speed == 9)
+        if(speed == 8)
             speed = 0;
     }
 
@@ -464,6 +450,7 @@ void LEDTask(void *pvParameters)
 //        LEDWrite(0x0F, 0x08);
 //        vTaskDelay(1000);
 
+        /*Adding pwm control temporarily here*/
     }
 }
 
@@ -500,5 +487,3 @@ void __error__(char *pcFilename, uint32_t ui32Line)
     {
     }
 }
-
-
