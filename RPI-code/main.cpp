@@ -344,12 +344,22 @@ void *Service_1(void *threadp)
 void test(void)
 {
     int fd;
-    uint8_t s = getColor();
+    uint8_t s = 2; //getColor();
     uint8_t r;
     fd = open("/dev/ttyS0", O_RDWR);
-    write(fd, &s, 1);
+    if (fd == -1)
+        printf("open failed\n");
     
-    read(fd, &r, 1);
+    int rv = write(fd, &s, 1);
+    if (rv == -1)
+        printf("write failed\n");
+    cout << "Bytes written: " << rv << endl;
+    
+    rv = read(fd, &r, 1);
+    if (rv == -1)
+        printf("read failed\n");
+    cout << "Bytes read: " << rv << endl;   
+    
     close(fd);
     printf("r= %d\n", r);
 }
@@ -466,23 +476,23 @@ int main()
 
     printf("\n");
 
-    camera_init(); //tanmay
+    //~ camera_init(); //tanmay
     
-    //UART_Init();
+    //~ //UART_Init();
     
-    configure_service_scheduler();
+    //~ configure_service_scheduler();
 
-    configure_services();
+    //~ configure_services();
     
-    for(i=0;i<NUM_SERVICES;i++)
-        pthread_join(threads[i], NULL);
+    //~ for(i=0;i<NUM_SERVICES;i++)
+        //~ pthread_join(threads[i], NULL);
 
     //~ while(1)
     //~ {
         //~ capture_frame(cap);
         //~ process_image(min_area, max_area);
     //~ }
-    //test();
+    test();
    printf("\nTEST COMPLETE\n");
 
    return 0;

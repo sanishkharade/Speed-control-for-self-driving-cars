@@ -26,6 +26,9 @@
 #include <sstream>
 #include <numeric>
 #include <opencv2/opencv.hpp>
+#include <pigpio.h>
+#include "udm.h"
+#include <signal.h>
 
 using namespace std;
 
@@ -85,10 +88,11 @@ struct timespec start_s1 = {0,0}, start_s2 = {0,0}, start_s3 = {0,0}, start_tota
 
 
 //changes by tanmay
-cv::VideoCapture cap(0); 
+cv::VideoCapture cap(1); 
 int min_area, max_area;
 
 float distance_cm = 0, computed_deadline = 0, time_to_stop_sec = 0;
+double distance_udm;
 
 /************************************************************************************
  * @brief   :   Function to print the scheduler properties
@@ -302,7 +306,7 @@ void *Sequencer(void *threadp)
         // Release each service at a sub-rate of the generic sequencer rate
 
         // Servcie_1 = RT_MAX-1	@ 3 Hz
-        if((seqCnt % 50) == 0) 
+        if((seqCnt % 25) == 0) 
         {
             clock_gettime(CLOCK_REALTIME, &start_total);
             sem_post(&semS1);
@@ -350,6 +354,9 @@ void *Service_1(void *threadp)
         
         //changes by Tanmay
         clock_gettime(CLOCK_REALTIME, &start_s1);
+        
+        /*UDM Test*/
+        distance_udm = get_distance();
         capture_frame(cap); 
         clock_gettime(CLOCK_REALTIME, &end_s1);
         
@@ -363,30 +370,35 @@ void test(void)
 {
     int fd;
     int rv = 0;
-    uint8_t s = 2; // getColor();
-    uint8_t r;
+    char s = getColor();
     
-    cout << "Opening file" << endl;
+    /*Overrid UDM*/
+    if(distance_udm < 30.0)
+        s = RED;
+    
+    char r;
+    
+    //cout << "Opening file" << endl;
     fd = open("/dev/ttyS0", O_RDWR);
     if (fd == -1)
         perror("error: open");
         
-    cout << "Starting to write" << endl;
+    //cout << "Starting to write" << endl;
     rv = write(fd, &s, 1);
     if (rv == -1)
         perror("error: write");
     
-    cout << "Bytes written: " << rv << endl;
-    
+    //cout << "Bytes written: " << rv << endl;
+    printf("sent = %d\n",s);
     rv = read(fd, &r, 1);
     if (rv == -1)
         perror("error: read");
     
-    cout << "Bytes read: " << rv << endl;
-    
+    //cout << "Bytes read: " << rv << endl;
+    printf("received = %d\n",r);
     close(fd);
-    cout << "s = " << s << endl;
-    cout << "r = " << r << endl;
+    //cout << "s = " << s << endl;
+    //cout << "r = " << r << endl;
 }
 void *Service_2(void *threadp)
 {
@@ -433,6 +445,8 @@ void *Service_4(void *threadp)
     while(1)
     {   
         sem_wait(&semS4);
+
+        cout << " distance: " << distance_udm << "cm" << endl;
 
         delta_t(&end_s1, &start_s1, &delta_s1);
         delta_t(&end_s2, &start_s2, &delta_s2);
@@ -549,6 +563,31 @@ void camera_init()
 }
 //-----------------------------------------------------
 
+void sighandler(int sig_no){
+
+    cout<<"SIGTERM detected!"<<endl;
+    
+    gpioTerminate();
+    
+    exit(sig_no);
+}
+
+void udm_init()
+{
+        if(gpioInitialise() < 0){
+            cout << "pigpio initialisation failed" << endl; 
+            signal(SIGINT, sighandler); 
+            exit(1);
+        }
+        else{
+            signal(SIGINT, sighandler); 
+            
+            cout << "pigpio initialisation ok" << endl;
+
+            init_udm();
+        }
+}
+
 int main(int argc, char** argv)
 {
     if (argc < 2)
@@ -576,24 +615,26 @@ int main(int argc, char** argv)
     cout << "-----------------------------------------------------------------------" << endl;
     
     int i;
-    //for (i=SCHEDULER; i<=SERVICE_2; i++)      
-    //    printf("%d ", i);
+    //~ //for (i=SCHEDULER; i<=SERVICE_2; i++)      
+    //~ //    printf("%d ", i);
 
-    //printf("\n");
+    //~ //printf("\n");
 
-    //~ camera_init(); //tanmay
+    camera_init(); //tanmay
     
-    //~ //UART_Init();
+    udm_init();
     
-    //~ configure_service_scheduler();
+    //UART_Init();
+    
+    configure_service_scheduler();
 
-    //~ configure_services();
+    configure_services();
     
-    //~ for(i=0;i<NUM_SERVICES;i++)
-    //~ {
-        //~ pthread_join(threads[i], NULL);
-    //~ }
-    test();
+    for(i=0;i<NUM_SERVICES;i++)
+    {
+        pthread_join(threads[i], NULL);
+    }
+    //test();
     
     printf("\nTEST COMPLETE\n");
 
