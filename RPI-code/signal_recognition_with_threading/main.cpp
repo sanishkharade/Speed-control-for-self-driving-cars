@@ -99,7 +99,7 @@ typedef struct service_params_s
 service_params_t service_times[NUM_SERVICES];
 
 //changes by tanmay
-cv::VideoCapture cap(1); 
+cv::VideoCapture cap(0); 
 int min_area, max_area;
 
 float distance_cm = 0, computed_deadline = 0, time_to_stop_sec = 0;
