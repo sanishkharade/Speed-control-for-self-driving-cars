@@ -50,6 +50,7 @@ void *Service_1(void *threadp);
 void *Service_2(void *threadp);
 void *Service_3(void *threadp);
 void *Service_4(void *threadp);
+void *Service_5(void *threadp);
 
 static void print_scheduler(void);
 
@@ -68,6 +69,7 @@ typedef enum service
     SERVICE_2,
     SERVICE_3,
     SERVICE_4,
+    SERVICE_5,
     NUM_SERVICES
 }service_t;
 
@@ -79,13 +81,22 @@ threadParams_t threadParams[NUM_THREADS];
 static struct sched_param rt_param[NUM_THREADS];
 pthread_attr_t rt_sched_attr[NUM_THREADS];
 
-sem_t semS1, semS2, semS3, semS4;
+sem_t semS1, semS2, semS3, semS4, semS5;
 struct timeval start_time_val;
 
-struct timespec start_s1 = {0,0}, start_s2 = {0,0}, start_s3 = {0,0}, start_total = {0,0},
-                end_s1 = {0,0}  , end_s2 = {0,0}  , end_s3 = {0,0}  , end_total = {0,0},
-                delta_s1 = {0,0}, delta_s2 = {0,0}, delta_s3 = {0,0}, delta_total = {0,0};
+struct timespec start_s1 = {0,0}, start_s2 = {0,0}, start_s3 = {0,0}, start_s4 = {0,0}, start_total = {0,0},
+                end_s1 = {0,0}  , end_s2 = {0,0}  , end_s3 = {0,0}  , end_s4 = {0,0}  , end_total = {0,0},
+                delta_s1 = {0,0}, delta_s2 = {0,0}, delta_s3 = {0,0}, delta_s4 = {0,0}, delta_total = {0,0};
 
+typedef struct service_params_s
+{
+    uint32_t wcet;
+    uint32_t total_ci;
+    double avg_ci;
+    
+}service_params_t;
+
+service_params_t service_times[NUM_SERVICES];
 
 //changes by tanmay
 cv::VideoCapture cap(1); 
@@ -93,6 +104,7 @@ int min_area, max_area;
 
 float distance_cm = 0, computed_deadline = 0, time_to_stop_sec = 0;
 double distance_udm;
+uint32_t ctr=0;
 
 /************************************************************************************
  * @brief   :   Function to print the scheduler properties
@@ -160,7 +172,12 @@ priority_t get_priority(service_t t)
             return rt_max_prio - 4;
             //return 
             break;
-
+            
+        case SERVICE_5:
+            return rt_max_prio - 5;
+            //return 
+            break;
+            
         default:
             printf("ERROR: No such task\n");
             return -1;
@@ -196,6 +213,11 @@ worker_t get_worker(service_t t)
             //return 
             break;
 
+        case SERVICE_5:
+            return Service_5;
+            //return 
+            break;
+            
         default:
             printf("ERROR: No such task\n");
             return 0;
@@ -306,45 +328,17 @@ void *Sequencer(void *threadp)
         // Release each service at a sub-rate of the generic sequencer rate
 
         // Servcie_1 = RT_MAX-1	@ 3 Hz
-        if((seqCnt % 25) == 0) 
+        if((seqCnt % 30) == 0) 
         {
-            clock_gettime(CLOCK_REALTIME, &start_total);
+            //clock_gettime(CLOCK_REALTIME, &start_total);
             sem_post(&semS1);
         }
-        // Service_2 = RT_MAX-2	@ 1 Hz
-        //if((seqCnt % 52) == 0) 
-        //~ if(sem_trywait(&) == 0)
-        //~ sem_post(&semS2);
-
-        // Service_3 = RT_MAX-3	@ 0.5 Hz
-        //if((seqCnt % 10) == 0) sem_post(&semS3);
-
-        // // Service_4 = RT_MAX-2	@ 1 Hz
-        // if((seqCnt % 30) == 0) sem_post(&semS4);
-
-        // // Service_5 = RT_MAX-3	@ 0.5 Hz
-        // if((seqCnt % 60) == 0) sem_post(&semS5);
-
-        // // Service_6 = RT_MAX-2	@ 1 Hz
-        // if((seqCnt % 30) == 0) sem_post(&semS6);
-
-        // // Service_7 = RT_MIN	0.1 Hz
-        // if((seqCnt % 300) == 0) sem_post(&semS7);
-
-        //gettimeofday(&current_time_val, (struct timezone *)0);
-        //printf("Sequencer release all sub-services @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
     } while(1);
 
-    // sem_post(&semS1); sem_post(&semS2); sem_post(&semS3);
-    // sem_post(&semS4); sem_post(&semS5); sem_post(&semS6);
-    // sem_post(&semS7);
-    // abortS1=TRUE; abortS2=TRUE; abortS3=TRUE;
-    // abortS4=TRUE; abortS5=TRUE; abortS6=TRUE;
-    // abortS7=TRUE;
-
     pthread_exit((void *)0);
 }
+
 void *Service_1(void *threadp)
 {
 
@@ -353,10 +347,11 @@ void *Service_1(void *threadp)
         sem_wait(&semS1);
         
         //changes by Tanmay
-        clock_gettime(CLOCK_REALTIME, &start_s1);
+        clock_gettime(CLOCK_REALTIME, &start_total);
         
+        clock_gettime(CLOCK_REALTIME, &start_s1);
         /*UDM Test*/
-        distance_udm = get_distance();
+        //distance_udm = get_distance();
         capture_frame(cap); 
         clock_gettime(CLOCK_REALTIME, &end_s1);
         
@@ -417,20 +412,21 @@ void *Service_2(void *threadp)
 
     pthread_exit((void *)0);
 }
+
 void *Service_3(void *threadp)
 {
-    char c;
-    while(1)
-    {   
-        sem_wait(&semS3);
 
+    while(1)
+    {
+        sem_wait(&semS3);
+        
+        //changes by Tanmay
         clock_gettime(CLOCK_REALTIME, &start_s3);
-        //~ UART_Transmit('a');
-        //~ c = UART_Receive();
-        //~ printf("%c\n", c);
-        test();
+        
+        /*UDM Test*/
+        distance_udm = get_distance();
+
         clock_gettime(CLOCK_REALTIME, &end_s3);
-        clock_gettime(CLOCK_REALTIME, &end_total);
         
         sem_post(&semS4);
     }
@@ -438,34 +434,102 @@ void *Service_3(void *threadp)
     pthread_exit((void *)0);
 }
 
+
 void *Service_4(void *threadp)
 {
-    static uint32_t total_time_msec;
     char c;
     while(1)
     {   
         sem_wait(&semS4);
 
-        cout << " distance: " << distance_udm << "cm" << endl;
+        clock_gettime(CLOCK_REALTIME, &start_s4);
+        //~ UART_Transmit('a');
+        //~ c = UART_Receive();
+        //~ printf("%c\n", c);
+        test();
+        clock_gettime(CLOCK_REALTIME, &end_s4);
+        clock_gettime(CLOCK_REALTIME, &end_total);
+        
+        sem_post(&semS5);
+    }
 
+    pthread_exit((void *)0);
+}
+
+
+void *Service_5(void *threadp)
+{
+    static uint32_t total_time_msec;
+    char c;
+    
+    uint32_t s1_msec=0, s2_msec=0, s3_msec=0, s4_msec=0;
+    
+    while(1)
+    {   
+        sem_wait(&semS5);
+        
+        ctr++;
+        
+        cout << " distance: " << distance_udm << "cm" << endl;
+        
         delta_t(&end_s1, &start_s1, &delta_s1);
+        
         delta_t(&end_s2, &start_s2, &delta_s2);
+        
         delta_t(&end_s3, &start_s3, &delta_s3);
+
+        delta_t(&end_s4, &start_s4, &delta_s4);
+
         delta_t(&end_total, &start_total, &delta_total);
         
-        cout << "Service 1: Frame Capture: " << delta_s1.tv_sec << "sec " 
-             << delta_s1.tv_nsec/NSEC_PER_MSEC << " msec" 
+        s1_msec = delta_s1.tv_nsec/NSEC_PER_MSEC;
+        s2_msec = delta_s2.tv_nsec/NSEC_PER_MSEC;
+        s3_msec = delta_s3.tv_nsec/NSEC_PER_MSEC;
+        s4_msec = delta_s4.tv_nsec/NSEC_PER_MSEC;
+        
+
+        service_times[SERVICE_1].total_ci += s1_msec;
+        service_times[SERVICE_2].total_ci += s2_msec;
+        service_times[SERVICE_3].total_ci += s3_msec;
+        service_times[SERVICE_4].total_ci += s4_msec; 
+        
+        if(s1_msec > service_times[SERVICE_1].wcet)
+        {
+            service_times[SERVICE_1].wcet = s1_msec;
+        }
+        
+        if(s2_msec > service_times[SERVICE_2].wcet)
+        {
+            service_times[SERVICE_2].wcet = s2_msec;
+        }
+        
+        if(s3_msec > service_times[SERVICE_3].wcet)
+        {
+            service_times[SERVICE_3].wcet = s3_msec;
+        }
+        
+        if(s4_msec > service_times[SERVICE_4].wcet)
+        {
+            service_times[SERVICE_4].wcet = s4_msec;
+        }
+        
+        cout << "Service 1: Frame Capture: " << delta_s1.tv_sec << " sec " 
+             << s1_msec << " msec" 
              << endl;
              
-        cout << "Service 2: Process Image: " << delta_s2.tv_sec << "sec " 
-             << delta_s2.tv_nsec/NSEC_PER_MSEC << " msec" 
+        cout << "Service 2: Process Image: " << delta_s2.tv_sec << " sec " 
+             << s2_msec << " msec" 
              << endl;
              
-        cout << "Service 3: Send Data: " << delta_s3.tv_sec << "sec " 
-             << delta_s3.tv_nsec/NSEC_PER_MSEC << " msec" 
+        cout << "Service 3: Measure Distance: " << delta_s3.tv_sec << " sec " 
+             << s3_msec << " msec" 
+             << endl;
+             
+        cout << "Service 4: Send Data: " << delta_s4.tv_sec << " sec " 
+             << s4_msec << " msec" 
              << endl;
         
-        cout << "Total Time: " << delta_total.tv_sec << "sec " 
+        cout << "Total Time: " << delta_total.tv_sec << " sec " 
              << delta_total.tv_nsec/NSEC_PER_MSEC << " msec" 
              << endl;
              
@@ -489,6 +553,7 @@ void *Service_4(void *threadp)
 
     pthread_exit((void *)0);
 }
+
 
 static void configure_services(void)
 {
@@ -540,6 +605,7 @@ void semaphores_init()
     if (sem_init (&semS2, 0, 0)) { printf ("Failed to initialize S2 semaphore\n"); exit (-1); }
     if (sem_init (&semS3, 0, 0)) { printf ("Failed to initialize S3 semaphore\n"); exit (-1); }
     if (sem_init (&semS4, 0, 0)) { printf ("Failed to initialize S4 semaphore\n"); exit (-1); }
+    if (sem_init (&semS5, 0, 0)) { printf ("Failed to initialize S5 semaphore\n"); exit (-1); }
        
 }
 
@@ -569,7 +635,22 @@ void sighandler(int sig_no){
     
     gpioTerminate();
     
-    exit(sig_no);
+    cout << "Average execution times: " << endl;
+    
+    cout << "For S1: " << service_times[SERVICE_1].total_ci/ctr << endl;
+    cout << "For S2: " << service_times[SERVICE_2].total_ci/ctr << endl;
+    cout << "For S3: " << service_times[SERVICE_3].total_ci/ctr << endl;
+    cout << "For S4: " << service_times[SERVICE_4].total_ci/ctr << endl;
+    
+        
+    cout << "WCET: " << endl;
+    
+    cout << "For S1: " << service_times[SERVICE_1].wcet << endl;
+    cout << "For S2: " << service_times[SERVICE_2].wcet << endl;
+    cout << "For S3: " << service_times[SERVICE_3].wcet << endl;
+    cout << "For S4: " << service_times[SERVICE_4].wcet << endl;
+    
+    exit(0);
 }
 
 void udm_init()
