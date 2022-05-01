@@ -55,8 +55,10 @@
 #define SERIAL_TASK_STACK_SIZE    (configMINIMAL_STACK_SIZE)
 #define LED_TASK_STACK_SIZE       (configMINIMAL_STACK_SIZE)
 #define MOTOR_TASK_STACK_SIZE     (configMINIMAL_STACK_SIZE)
-#define SCALING_FACTOR              1000 //for 1ms timer
-#define TIMER_FREQ                  2500
+#define SCALING_FACTOR             100000//1000 //for 1ms timer
+#define TIMER_FREQ                 2500
+#define CLOCK_FREQ                 120000000
+#define TIMER_LOAD_VALUE           (CLOCK_FREQ/SCALING_FACTOR)
 uint32_t ui32Period,pom = 0;
 
 
@@ -66,6 +68,7 @@ void SerialTask(void *pvParameters);
 void MOTORTask(void *pvParameters);
 void pwm_control(void);
 void run_motor_speed(int level);
+static void calculate_wcet(uint32_t start, uint32_t end,uint32_t *WCET,uint8_t id);
 
 
 uint32_t g_ui32SysClock;
@@ -123,16 +126,16 @@ UART3IntHandler(void)
         //
         // Blink the LED to show a character transfer is occuring.
         //
-        if(xQueueSend(g_pMyQueue, &c, portMAX_DELAY) != pdPASS)
-        {
-            // Error. The queue should never be full. If so print the
-            // error message on UART and wait for ever.
-
-            UARTprintf("\nQueue full. This should never happen.\n");
-            while(1)
-            {
-            }
-        }
+//        if(xQueueSend(g_pMyQueue, &c, portMAX_DELAY) != pdPASS)
+//        {
+//            // Error. The queue should never be full. If so print the
+//            // error message on UART and wait for ever.
+//
+//            UARTprintf("\nQueue full. This should never happen.\n");
+//            while(1)
+//            {
+//            }
+//        }
 
         if(xQueueSend(g_pMotorQueue, &current_color, portMAX_DELAY) != pdPASS)
         {
@@ -309,6 +312,26 @@ void vHWTimerInit(void){
 
 }
 
+void calculate_wcet(uint32_t start, uint32_t end,uint32_t *WCET,uint8_t id){
+
+    uint32_t Exec_t = 0;
+
+    Exec_t = (end - start + TIMER_LOAD_VALUE) % TIMER_LOAD_VALUE;
+
+    //UARTprintf("==Service_%d WCET time:%d us==\n", id, (Exec_t*8)/1000);
+
+    if(Exec_t > *WCET){
+
+        *WCET = Exec_t;
+        taskENTER_CRITICAL();
+
+        //For x1 frequency.
+        UARTprintf("==Service_%d WCET time:%d us==\n", id, (Exec_t*8)/1000);
+
+        taskEXIT_CRITICAL();
+    }
+
+}
 
 // Main function
 int main(void)
@@ -339,7 +362,7 @@ int main(void)
     // Initialize the GPIO pins for the Launchpad
     PinoutSet(false, false);
 
-
+    UARTStdioConfig(0, 57600, SYSTEM_CLOCK);
     // Create tasks
     xTaskCreate(LEDTask, (const portCHAR *)"LEDs",
                 LED_TASK_STACK_SIZE, NULL, LED_TASK_PRIORITY, NULL);
@@ -360,19 +383,8 @@ int main(void)
 void Timer0AIntHandler(void)
 {
     TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
-    pom++;
 
-//    if(pom == TIMER_FREQ){//2secs
-//
-//        pom = 0;
-//
-//        if(xQueueSend(g_pMotorQueue, &pom, portMAX_DELAY) != pdPASS){
-//
-//            UARTprintf("\nQueue write failure!\n");
-//            while(1){
-//            }
-//        }
-//    }
+    pom++;
 
 }
 
@@ -392,30 +404,39 @@ uint8_t speed = 5;
 void pwm_control(void){
 
     uint8_t queueData = 0;
-
-//    if(xQueueReceive(g_pMotorQueue, &queueData, portMAX_DELAY) == pdPASS){
-//
-//        //UARTprintf("setting motor speed %dx\n", speed);
-//        run_motor_speed(speed);
-//
-//        if(speed == 0)
-//            speed = 5;
-//
-//        speed++;
-//        if(speed == 8)
-//            speed = 0;
-//    }
+    TickType_t xStartTime,xEndTime;
+    static uint32_t WCET = 0;
 
     if(xQueueReceive(g_pMotorQueue, &queueData, portMAX_DELAY) == pdPASS){
+
+        /*Start time log*/
+        xStartTime = TimerValueGet(TIMER0_BASE, TIMER_A);;
 
         if(queueData == 1)
             run_motor_speed(0);
         else if(queueData == 2)
             run_motor_speed(5);
         else if(queueData == 3)
-            run_motor_speed(7);
+            run_motor_speed(6);
         else
             run_motor_speed(0);
+
+        /*End time log*/
+        xEndTime = TimerValueGet(TIMER0_BASE, TIMER_A);;
+
+        calculate_wcet(xStartTime,xEndTime, &WCET, 3);
+    }
+
+    //Send data to Rpi
+    if(xQueueSend(g_pMyQueue, &queueData, portMAX_DELAY) != pdPASS)
+    {
+        // Error. The queue should never be full. If so print the
+        // error message on UART and wait for ever.
+
+        //UARTprintf("\nQueue full. This should never happen.\n");
+        while(1)
+        {
+        }
     }
 
 }
@@ -430,8 +451,14 @@ void run_motor_speed(int level)
 // Flash the LEDs on the launchpa
 void LEDTask(void *pvParameters)
 {
+    TickType_t xStartTime,xEndTime;
+    uint32_t WCET = 0;
+
     for (;;)
     {
+        /*Start time log*/
+        xStartTime = TimerValueGet(TIMER0_BASE, TIMER_A);
+
         //printf("color = %d\n", color);
         switch(color)
         {
@@ -456,23 +483,16 @@ void LEDTask(void *pvParameters)
                 break;
 
         }
-//        // Turn on LED 1
-//        LEDWrite(0x0F, 0x01);
-           //vTaskDelay(1000);
-//
-//        // Turn on LED 2
-//        LEDWrite(0x0F, 0x02);
-//        vTaskDelay(1000);
-//
-//        // Turn on LED 3
-//        LEDWrite(0x0F, 0x04);
-//        vTaskDelay(1000);
-//
-//        // Turn on LED 4
-//        LEDWrite(0x0F, 0x08);
-//        vTaskDelay(1000);
 
-        /*Adding pwm control temporarily here*/
+        /*End time log*/
+        xEndTime = TimerValueGet(TIMER0_BASE, TIMER_A);
+
+//        TickType_t execution_time = (xStartTime - xEndTime + TIMER_LOAD_VALUE) % TIMER_LOAD_VALUE;
+//
+//        UARTprintf("==Service_1 WCET time:%d ms==\n", ((execution_time*8)/1000));
+
+        calculate_wcet(xStartTime,xEndTime, &WCET, 1);
+
     }
 }
 
@@ -481,8 +501,12 @@ void LEDTask(void *pvParameters)
 void SerialTask(void *pvParameters)
 {
     // Set up the UART which is connected to the virtual COM port
-    UARTStdioConfig(0, 57600, SYSTEM_CLOCK);
+    //UARTStdioConfig(0, 57600, SYSTEM_CLOCK);
     //char cMessage;
+
+    TickType_t xStartTime,xEndTime;
+    uint32_t WCET = 0;
+
     for (;;)
     {
         //UARTprintf("Hello, world from FreeRTOS 10.2!\r\n");
@@ -491,7 +515,17 @@ void SerialTask(void *pvParameters)
         if(xQueueReceive(g_pMyQueue, &color, portMAX_DELAY) == pdPASS)
         {
             //UARTprintf("Time = %d seconds\n\r", ulSeconds);
+
+            /*Start time log*/
+            xStartTime = TimerValueGet(TIMER0_BASE, TIMER_A);;
+
             UARTSend((uint8_t *)(&color), 1);
+
+            /*End time log*/
+            xEndTime = TimerValueGet(TIMER0_BASE, TIMER_A);;
+
+            calculate_wcet(xStartTime,xEndTime, &WCET, 2);
+
             //UARTprintf("Hello, world from FreeRTOS 10.2!\r\n");
         }
 
