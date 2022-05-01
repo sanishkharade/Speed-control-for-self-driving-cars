@@ -1,9 +1,9 @@
 CC=g++
 CFLAGS = -O0 -Wall -Werror
 LDFLAGS = 
-CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video -lrt -lpthread
+CPPLIBS= -L/usr/lib -lopencv_core -lopencv_flann -lopencv_video -lrt -lpthread -lpigpio
 
-OBJFILES = process.o capture.o uart.o calculate.o main.o
+OBJFILES = process.o capture.o uart.o calculate.o udm.o main.o 
 
 TARGET = main
 

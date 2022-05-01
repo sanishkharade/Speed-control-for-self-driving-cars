@@ -5,8 +5,6 @@
 #include "process.h"
 #include "capture.h"
 
-
-
 color_t color = NONE;
 
 using namespace std;
@@ -61,52 +59,12 @@ Shape labelPolygon(Contour& c, double area)
     Contour approx;
     cv::approxPolyDP(c, approx, 0.02*peri, true);
 
-    if ((int)approx.size() == 7)
-    {
-        cv::Point center = std::accumulate(approx.begin(), approx.end(), cv::Point(0, 0)) / 7;
-        int left_cnt, right_cnt;
-        left_cnt = right_cnt = 0;
-
-        for (int i = 0; i < 7; ++i)
-        {
-            if ((approx[i] - center).x >= 0)
-                ++right_cnt;
-            else
-                ++left_cnt;
-        }
-
-        if (left_cnt > right_cnt)
-            return Shape::Left;
-        else
-            return Shape::Right;
-    }
-
     if (approx.size() > 7 && isConvex(c, area))
         return Shape::Circle;
     
     return Shape::Undefined;
 }
-/*
-std::string shapeToString(Shape s)
-{
-    switch (s)
-    {
-    case Shape::Circle:
-        return "Circle";
-    
-    case Shape::Left:
-        return "Left";
 
-    case Shape::Right:
-        return "Right";
-
-    case Shape::Undefined:
-        return "Undefined";
-    }
-
-    return "Error";
-}
-*/
 std::vector<Contour> findShapes(Shape shapeToFind, cv::Mat& grey, int min_area, int max_area)
 {
     std::vector<Contour> contours;
@@ -128,6 +86,7 @@ std::vector<Contour> findShapes(Shape shapeToFind, cv::Mat& grey, int min_area, 
 
     return found;
 }
+
 void setColor(int c)
 {
     
@@ -144,46 +103,38 @@ void setColor(int c)
         case 3:
             color = GREEN;
             break;
+            
         default:
             color = NONE;
             break;
     }
 }
+
 color_t getColor(void)
 {
     return color;
 }
+
 void process_image(int min_area, int max_area)
 {    
-	
      cv::Mat redMasked = mask_img(frame, 0, 15, 180, 128);
      cv::Mat yellowMasked = mask_img(frame, 30, 15, 120, 60);
      cv::Mat greenMasked = mask_img(frame, 60, 15, 90, 60);
-     //cv::Mat greenInverse = 255 - greenMasked;
 
-     //cv::imshow("Found Red", redMasked);
-     //cv::imshow("Found Yellow", yellowMasked);
-     //cv::imshow("Found Green", greenMasked);
-     //cv::imshow("Found Green (Inverse)", greenInverse);
-
-     const static std::string captions[] = { "Red Light!", "Yellow Light!", "Green Light!"};//, "Left Direction!", "Right Direction!" };
-     const static cv::Scalar colors[] = { cv::Scalar(0, 0, 255), cv::Scalar(131, 232, 252), cv::Scalar(0, 255, 0)};//, cv::Scalar(0, 255, 0), cv::Scalar(0, 255, 0) };
+     const static std::string captions[] = { "Red Light!", "Yellow Light!", "Green Light!"};
+     const static cv::Scalar colors[] = { cv::Scalar(0, 0, 255), cv::Scalar(131, 232, 252), cv::Scalar(0, 255, 0)};
 
      std::vector<Contour> found[] = {
          findShapes(Shape::Circle, redMasked, min_area, max_area),
          findShapes(Shape::Circle, yellowMasked, min_area, max_area),
          findShapes(Shape::Circle, greenMasked, min_area, max_area),
-         //findShapes(Shape::Left, greenInverse, min_area, max_area),
-         //findShapes(Shape::Right, greenInverse, min_area, max_area)
      };
-        int i;
+    
+     int i;
      for ( i= 0; i < 3; ++i)
      {
          if (!found[i].empty())
-         {
-             //cv::drawContours(frame, found[i], -1, colors[i], 2);
-             //putTextAtCenter(frame, captions[i], colors[i]);
-                    
+         {                    
              cout << captions[i] << endl;
              setColor(i+1);
              break;
@@ -193,7 +144,4 @@ void process_image(int min_area, int max_area)
     {
         setColor(0);
     }
-     //cv::imshow("Result", frame); 
-     
-     //int key = cv::waitKey(1) & 0xff;
 }
