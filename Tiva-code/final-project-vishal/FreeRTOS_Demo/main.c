@@ -79,7 +79,7 @@ uint32_t g_ui32PWMIncrement;
 
 typedef enum
 {
-    NONE = '0',
+    NONE = 0,
     RED,
     YELLOW,
     GREEN
@@ -349,6 +349,23 @@ int main(void)
     g_pMotorQueue = xQueueCreate(2, sizeof(uint32_t));
 
     /*--Vishals part--*/
+
+    //Enable clock
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+
+    //Check if h/w access enabled
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPION))
+    {
+        }
+
+    //Set output
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_2);
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_3);
+
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, GPIO_PIN_2);
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_3, GPIO_PIN_3);
+
+
     vHWTimerInit();
 
     //ConfigureUART();
@@ -415,11 +432,11 @@ void pwm_control(void){
         if(queueData == 1)
             run_motor_speed(0);
         else if(queueData == 2)
-            run_motor_speed(5);
+            run_motor_speed(4);
         else if(queueData == 3)
             run_motor_speed(6);
         else
-            run_motor_speed(0);
+            run_motor_speed(6);
 
         /*End time log*/
         xEndTime = TimerValueGet(TIMER0_BASE, TIMER_A);;
@@ -468,6 +485,11 @@ void LEDTask(void *pvParameters)
 
             case RED:
                 LEDWrite(0x0F, 0x02);
+
+                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_3, GPIO_PIN_3);
+
+                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
+
                 break;
 
             case YELLOW:
@@ -476,6 +498,10 @@ void LEDTask(void *pvParameters)
 
             case GREEN:
                 LEDWrite(0x0F, 0x08);
+
+                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, GPIO_PIN_2);
+
+                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_3, 0x00);
                 break;
 
             default:
