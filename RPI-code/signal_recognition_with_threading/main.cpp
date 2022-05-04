@@ -1,37 +1,56 @@
+/*
+ * @file_name       :   main.cpp
+ * 
+ * @brief           :   RTES Final Project Code
+ * 
+ * @author          :   Sanish Kharade
+ *                      Tanmay Kothale 
+ *                      Vishal Raj
+ * 
+ * @date            :   May 03, 2022
+ * 
+ * @references      :   1. https://github.com/powergee/TrafficLightDetection
+ *                      2. http://mercury.pr.erau.edu/~siewerts/cec450/code/sequencer_generic/seqgen.c
+ * 
+ */
+
 // This is necessary for CPU affinity macros in Linux
 #define _GNU_SOURCE
 
+/**********************************************************************/
+/*                          LIBRARY FILES                             */
+/**********************************************************************/
 #include <stdio.h>
-#include <stdint.h>         // for uint8_t
+#include <stdint.h>         
 #include <stdlib.h>
 #include <unistd.h>
-
-#include <pthread.h>        // for pthreads
-#include <sched.h>          // for cpu functions
-
-#include <sys/sysinfo.h>    // for get_nprocs
-
-#include <time.h>           // for time function
+#include <pthread.h>        
+#include <sched.h>          
+#include <sys/sysinfo.h>   
+#include <time.h>     
 #include <sys/time.h>
-
-#include <errno.h>          // for error tracking
-#include <semaphore.h>      // for semaphores
-
-//includes for OpenCV -- changed by Tanmay
-#include "capture.h"
-#include "process.h"
-#include "uart.h"
-#include "calculate.h"
-#include <iostream>
+#include <errno.h>      
+#include <semaphore.h>    
+#include <signal.h>        
+#include <iostream>         
 #include <sstream>
 #include <numeric>
 #include <opencv2/opencv.hpp>
 #include <pigpio.h>
+#include "capture.h"
+#include "process.h"
+#include "uart.h"
+#include "calculate.h"
 #include "udm.h"
-#include <signal.h>
 
+/**********************************************************************/
+/*               NAMESPACE FOR IO OPERATIONS IN CPP                   */
+/**********************************************************************/
 using namespace std;
 
+/**********************************************************************/
+/*                  PRIVATE MACROS AND DEFINES                        */
+/**********************************************************************/
 #define TRUE (1)
 #define FALSE (0)
 #define USEC_PER_MSEC (1000)
@@ -39,29 +58,32 @@ using namespace std;
 #define NUM_CPU_CORES (1)
 #define NUM_THREADS (7+1)
 #define SCHED_POLICY SCHED_FIFO
-
-// For sched fifo this ranges from 0-99
-typedef uint8_t priority_t;
-
+#define FIXED_DEADLINE (400.00)
 
 void *Sequencer(void *threadp);
-
 void *Service_1(void *threadp);
 void *Service_2(void *threadp);
 void *Service_3(void *threadp);
 void *Service_4(void *threadp);
 void *Service_5(void *threadp);
-
+ 
 static void print_scheduler(void);
 
+/**********************************************************************/
+/*              TYPEDEFS, DATA STRUCTURES & ENUMERATIONS              */
+/**********************************************************************/
 typedef void* (*worker_t)(void*);
+// For sched fifo this ranges from 0-99
+typedef uint8_t priority_t;
+
+//for thread callback function
 typedef struct
 {
     int threadIdx;
     worker_t worker;
 } threadParams_t;
 
-
+//enum for number of services
 typedef enum service
 {
     SCHEDULER,
@@ -73,21 +95,7 @@ typedef enum service
     NUM_SERVICES
 }service_t;
 
-priority_t rt_max_prio, rt_min_prio;
-
-pthread_t threads[NUM_THREADS];
-threadParams_t threadParams[NUM_THREADS];
-
-static struct sched_param rt_param[NUM_THREADS];
-pthread_attr_t rt_sched_attr[NUM_THREADS];
-
-sem_t semS1, semS2, semS3, semS4, semS5;
-struct timeval start_time_val;
-
-struct timespec start_s1 = {0,0}, start_s2 = {0,0}, start_s3 = {0,0}, start_s4 = {0,0}, start_total = {0,0},
-                end_s1 = {0,0}  , end_s2 = {0,0}  , end_s3 = {0,0}  , end_s4 = {0,0}  , end_total = {0,0},
-                delta_s1 = {0,0}, delta_s2 = {0,0}, delta_s3 = {0,0}, delta_s4 = {0,0}, delta_total = {0,0};
-
+//to compute wcet and avg execution time
 typedef struct service_params_s
 {
     uint32_t wcet;
@@ -96,12 +104,34 @@ typedef struct service_params_s
     
 }service_params_t;
 
+/**********************************************************************/
+/*                          GLOBAL VARIABLES                          */
+/**********************************************************************/
+priority_t rt_max_prio, rt_min_prio;                //to set priorities of tasks
+pthread_t threads[NUM_THREADS];                     //array of threads
+threadParams_t threadParams[NUM_THREADS];           //array to store thread parameters
+static struct sched_param rt_param[NUM_THREADS];    //array to store scheduler parameters
+pthread_attr_t rt_sched_attr[NUM_THREADS];          //array to store scheduler attributes
+
+sem_t semS1, semS2, semS3, semS4, semS5;            //semaphores for synchronization
+
+struct timeval start_time_val;                      //to set scheduler frequency
+
+//following structure instances are used for logging purposes
+struct timespec start_s1 = {0,0}, start_s2 = {0,0}, start_s3 = {0,0}, start_s4 = {0,0}, start_total = {0,0},
+                end_s1 = {0,0}  , end_s2 = {0,0}  , end_s3 = {0,0}  , end_s4 = {0,0}  , end_total = {0,0},
+                delta_s1 = {0,0}, delta_s2 = {0,0}, delta_s3 = {0,0}, delta_s4 = {0,0}, delta_total = {0,0};
+
+//array of service parameter structure to store wcet and acet
 service_params_t service_times[NUM_SERVICES];
 
-//changes by tanmay
+//global object used to capture frames
 cv::VideoCapture cap(0); 
+
+//to find contours in a given area of a frame
 int min_area, max_area;
 
+//to calculate deadlines and distance
 float distance_cm = 0, computed_deadline = 0, time_to_stop_sec = 0;
 double distance_udm;
 uint32_t ctr=0;
@@ -150,32 +180,26 @@ priority_t get_priority(service_t t)
     {
         case SCHEDULER:
             return rt_max_prio;
-            //return 
             break;
         
         case SERVICE_1:
             return rt_max_prio - 1;
-            //return 
             break;
 
         case SERVICE_2:
             return rt_max_prio - 2;
-            //return 
             break;
 
         case SERVICE_3:
-            return rt_max_prio - 3;
-            //return 
+            return rt_max_prio - 3; 
             break;
             
         case SERVICE_4:
             return rt_max_prio - 4;
-            //return 
             break;
             
         case SERVICE_5:
-            return rt_max_prio - 5;
-            //return 
+            return rt_max_prio - 5; 
             break;
             
         default:
@@ -184,46 +208,58 @@ priority_t get_priority(service_t t)
             break;
     }
 }
+
+/************************************************************************************
+ * @brief   :   Function that assigns a worker function to each thread
+ *              
+ * @param   :   service_t t -  service who's worker needs to be assigned
+ *
+ * @return  :   worker_t    -  worker function for a particular service
+ *              
+*************************************************************************************/
 worker_t get_worker(service_t t)
 {
     switch (t)
     {
         case SCHEDULER:
             return Sequencer;
-            //return 
             break;
         
         case SERVICE_1:
             return Service_1;
-            //return 
             break;
 
         case SERVICE_2:
             return Service_2;
-            //return 
             break;
 
         case SERVICE_3:
             return Service_3;
-            //return 
             break;
         
         case SERVICE_4:
             return Service_4;
-            //return 
             break;
 
         case SERVICE_5:
-            return Service_5;
-            //return 
+            return Service_5; 
             break;
             
         default:
-            printf("ERROR: No such task\n");
+            cout << "Error: No such task found." << endl;
             return 0;
             break;
     }
 }
+
+/************************************************************************************
+ * @brief   :   configures the scheduler to execute all services
+ *              
+ * @param   :   none
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void configure_service_scheduler(void)
 {
     cpu_set_t allcpuset;
@@ -235,15 +271,14 @@ void configure_service_scheduler(void)
     pthread_attr_t main_attr;
 
     // Work related to CPU and cores
-    printf("System has %d processors configured and %d available.\n", get_nprocs_conf(), get_nprocs());
+    cout << "System has " << get_nprocs_conf() << " processors configured and " << get_nprocs() << " available." << endl;
 
     CPU_ZERO(&allcpuset);
     
     for(i=0; i < NUM_CPU_CORES; i++)
         CPU_SET(i, &allcpuset);
 
-    printf("Using CPUS = %d from total available.\n", CPU_COUNT(&allcpuset));
-
+    cout << "Using CPUS = "<< CPU_COUNT(&allcpuset) << " from total available." << endl;
 
     // Work related to services
     rt_max_prio = sched_get_priority_max(SCHED_FIFO);
@@ -265,21 +300,29 @@ void configure_service_scheduler(void)
     pthread_attr_getscope(&main_attr, &scope);
 
     if(scope == PTHREAD_SCOPE_SYSTEM)
-      printf("PTHREAD SCOPE SYSTEM\n");
+      cout << "PTHREAD SCOPE SYSTEM" << endl;
     else if (scope == PTHREAD_SCOPE_PROCESS)
-      printf("PTHREAD SCOPE PROCESS\n");
+      cout << "PTHREAD SCOPE PROCESS" << endl;
     else
-      printf("PTHREAD SCOPE UNKNOWN\n");
+      cout << "PTHREAD SCOPE UNKNOWN" << endl;
 
-    printf("rt_max_prio=%d\n", rt_max_prio);
-    printf("rt_min_prio=%d\n", rt_min_prio);
+    cout << "rt_max_prio= " << rt_max_prio << endl;
+    cout << "rt_min_prio= " << rt_min_prio << endl;
 }
+
+/************************************************************************************
+ * @brief   :   schedules all the services
+ *              
+ * @param   :   threadp - Thread parameters 
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void *Sequencer(void *threadp)
 {
     struct timeval current_time_val;
-    struct timespec delay_time = {0,10000000}; // delay for 33.33 msec, 30 Hz For Q1
-    // Comment above line and uncomment below line for Q3	
-    // struct timespec delay_time = {0,333333}; // delay for 0.33 msec, 3000 Hz For Q3
+    struct timespec delay_time = {0,10000000}; // delay for 10msec, Frequency = 100 Hz
+
     struct timespec remaining_time;
     double current_time;
     double residual;
@@ -288,15 +331,14 @@ void *Sequencer(void *threadp)
     threadParams_t *threadParams = (threadParams_t *)threadp;
 
     gettimeofday(&current_time_val, (struct timezone *)0);
-    //syslog(LOG_CRIT, "Sequencer thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
-    printf("Sequencer thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+    
+    cout << "Sequencer thread @ sec= " << (int)(current_time_val.tv_sec-start_time_val.tv_sec) 
+         << ", msec= " << (int)current_time_val.tv_usec/USEC_PER_MSEC << endl;
 
     do
     {
         delay_cnt=0; residual=0.0;
-        //printf("Sequencer\n");
-        //gettimeofday(&current_time_val, (struct timezone *)0);
-        //printf("Sequencer thread prior to delay @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+        
         do
         {
             rc=nanosleep(&delay_time, &remaining_time);
@@ -305,7 +347,8 @@ void *Sequencer(void *threadp)
             { 
                 residual = remaining_time.tv_sec + ((double)remaining_time.tv_nsec / (double)NANOSEC_PER_SEC);
 
-                if(residual > 0.0) printf("residual=%lf, sec=%d, nsec=%d\n", residual, (int)remaining_time.tv_sec, (int)remaining_time.tv_nsec);
+                if(residual > 0.0)
+                    cout << "residual= " << residual << ", sec=" << (int)remaining_time.tv_sec << ", nsec=" << (int)remaining_time.tv_nsec << endl;
  
                 delay_cnt++;
             }
@@ -319,18 +362,13 @@ void *Sequencer(void *threadp)
 
         seqCnt++;
         gettimeofday(&current_time_val, (struct timezone *)0);
-        //printf("Sequencer cycle %llu @ sec=%d, msec=%d\n", seqCnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
-
-        if(delay_cnt > 1) printf("Sequencer looping delay %d\n", delay_cnt);
-
-
-        // Release each service at a sub-rate of the generic sequencer rate
-
-        // Servcie_1 = RT_MAX-1	@ 3 Hz
-        if((seqCnt % 30) == 0) 
+        if(delay_cnt > 1) 
+            cout << "Sequencer looping delay " << delay_cnt << endl;
+            
+        //post the first service every 450 msec = 2.22 Hz
+        if((seqCnt % 45) == 0) 
         {
-            //clock_gettime(CLOCK_REALTIME, &start_total);
             sem_post(&semS1);
         }
 
@@ -339,62 +377,76 @@ void *Sequencer(void *threadp)
     pthread_exit((void *)0);
 }
 
+/************************************************************************************
+ * @brief   :   Captures the frame
+ *              
+ * @param   :   threadp - Thread parameters 
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void *Service_1(void *threadp)
 {
 
     while(1)
     {
-        sem_wait(&semS1);
+        sem_wait(&semS1);                               //wait for sequencer to post the semaphore
+
+        clock_gettime(CLOCK_REALTIME, &start_total);    //record start time of total execution
+        clock_gettime(CLOCK_REALTIME, &start_s1);       //record start time for this service
+        capture_frame(cap);                             //capture the frame
+        clock_gettime(CLOCK_REALTIME, &end_s1);         //record end time for this service
         
-        //changes by Tanmay
-        clock_gettime(CLOCK_REALTIME, &start_total);
-        
-        clock_gettime(CLOCK_REALTIME, &start_s1);
-        /*UDM Test*/
-        //distance_udm = get_distance();
-        capture_frame(cap); 
-        clock_gettime(CLOCK_REALTIME, &end_s1);
-        
-        sem_post(&semS2);
+        sem_post(&semS2);                               //post semaphore for next service
     }
 
     pthread_exit((void *)0);
 }
 
+/************************************************************************************
+ * @brief   :   Performs UART transmission and reception
+ *              
+ * @param   :   none
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void test(void)
 {
     int fd;
     int rv = 0;
     char s = getColor();
     
-    /*Overrid UDM*/
-    if(distance_udm < 30.0)
+    /*Override Image processing algorithm*/
+    if(distance_udm < 35.0)
         s = RED;
     
     char r;
     
-    //cout << "Opening file" << endl;
     fd = open("/dev/ttyS0", O_RDWR);
     if (fd == -1)
         perror("error: open");
         
-    //cout << "Starting to write" << endl;
     rv = write(fd, &s, 1);
     if (rv == -1)
         perror("error: write");
     
-    //cout << "Bytes written: " << rv << endl;
-    printf("sent = %d\n",s);
     rv = read(fd, &r, 1);
     if (rv == -1)
         perror("error: read");
     
-    //cout << "Bytes read: " << rv << endl;
-    printf("received = %d\n",r);
     close(fd);
-    //cout << "s = " << s << endl;
-    //cout << "r = " << r << endl;
+
 }
+
+/************************************************************************************
+ * @brief   :   Processes the image and checks for traffic light
+ *              
+ * @param   :   threadp - Thread parameters 
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void *Service_2(void *threadp)
 {
 
@@ -402,7 +454,6 @@ void *Service_2(void *threadp)
     {   
         sem_wait(&semS2);
 
-        //changes by tanmay
         clock_gettime(CLOCK_REALTIME, &start_s2);
         process_image(min_area, max_area); 
         clock_gettime(CLOCK_REALTIME, &end_s2);
@@ -413,6 +464,14 @@ void *Service_2(void *threadp)
     pthread_exit((void *)0);
 }
 
+/************************************************************************************
+ * @brief   :   Measures distance from Ultrasonic sensor
+ *              
+ * @param   :   threadp - Thread parameters 
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void *Service_3(void *threadp)
 {
 
@@ -434,7 +493,14 @@ void *Service_3(void *threadp)
     pthread_exit((void *)0);
 }
 
-
+/************************************************************************************
+ * @brief   :   Sends the data packet to TIVA using UART
+ *              
+ * @param   :   threadp - Thread parameters 
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void *Service_4(void *threadp)
 {
     char c;
@@ -443,11 +509,9 @@ void *Service_4(void *threadp)
         sem_wait(&semS4);
 
         clock_gettime(CLOCK_REALTIME, &start_s4);
-        //~ UART_Transmit('a');
-        //~ c = UART_Receive();
-        //~ printf("%c\n", c);
         test();
         clock_gettime(CLOCK_REALTIME, &end_s4);
+        
         clock_gettime(CLOCK_REALTIME, &end_total);
         
         sem_post(&semS5);
@@ -456,7 +520,14 @@ void *Service_4(void *threadp)
     pthread_exit((void *)0);
 }
 
-
+/************************************************************************************
+ * @brief   :   Logs the timings for all services
+ *              
+ * @param   :   threadp - Thread parameters 
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void *Service_5(void *threadp)
 {
     static uint32_t total_time_msec;
@@ -468,9 +539,7 @@ void *Service_5(void *threadp)
     {   
         sem_wait(&semS5);
         
-        ctr++;
-        
-        cout << " distance: " << distance_udm << "cm" << endl;
+        ctr++;    
         
         delta_t(&end_s1, &start_s1, &delta_s1);
         
@@ -513,6 +582,8 @@ void *Service_5(void *threadp)
             service_times[SERVICE_4].wcet = s4_msec;
         }
         
+        cout << "Distance: " << distance_udm << " cm" << endl;
+        
         cout << "Service 1: Frame Capture: " << delta_s1.tv_sec << " sec " 
              << s1_msec << " msec" 
              << endl;
@@ -535,10 +606,7 @@ void *Service_5(void *threadp)
              
         total_time_msec = (uint32_t)((delta_total.tv_sec*1000) + (delta_total.tv_nsec/NSEC_PER_MSEC));
         
-        cout << "Observed time :" << total_time_msec << " msec" << endl;
-        cout << "Estimated deadline: " << computed_deadline*1000 << " msec" << endl;
-        
-        if (total_time_msec < (computed_deadline*1000))
+        if (total_time_msec < FIXED_DEADLINE)
         {
             cout << "Deadline Met!" << endl;
         }
@@ -554,17 +622,18 @@ void *Service_5(void *threadp)
     pthread_exit((void *)0);
 }
 
-
+/************************************************************************************
+ * @brief   :   Configure all services as threads and assign a worker function
+ *              
+ * @param   :   none
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 static void configure_services(void)
 {
     int i, rc;
     cpu_set_t threadcpu;
-
-    //update thread workers
-    // threadParams[0].worker = Sequencer;
-    // threadParams[1].worker = Service_1;
-    // threadParams[2].worker = Service_2;
-    // threadParams[3].worker = Service_3;
 
     for(i=0; i < NUM_SERVICES; i++)
     {
@@ -575,7 +644,7 @@ static void configure_services(void)
         rc=pthread_attr_init(&rt_sched_attr[i]);
         rc=pthread_attr_setinheritsched(&rt_sched_attr[i], PTHREAD_EXPLICIT_SCHED);
         rc=pthread_attr_setschedpolicy(&rt_sched_attr[i], SCHED_FIFO);
-        //rc=pthread_attr_setaffinity_np(&rt_sched_attr[i], sizeof(cpu_set_t), &threadcpu);
+
 
         rt_param[i].sched_priority = get_priority((service_t)i); 
         pthread_attr_setschedparam(&rt_sched_attr[i], &rt_param[i]);
@@ -585,7 +654,6 @@ static void configure_services(void)
 
         rc=pthread_create(&threads[i],              // pointer to thread descriptor
                         &rt_sched_attr[i],          // use specific attributes
-                        //(void *)0,                // default attributes
                         threadParams[i].worker,     // thread function entry point
                         (void *)&(threadParams[i])  // parameters to pass in
                         );
@@ -599,6 +667,15 @@ static void configure_services(void)
     printf("Service threads will run on %d CPU cores\n", CPU_COUNT(&threadcpu));
 
 }
+
+/************************************************************************************
+ * @brief   :   Initialize all semaphores for synchronization
+ *              
+ * @param   :   none
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void semaphores_init()
 {
     if (sem_init (&semS1, 0, 0)) { printf ("Failed to initialize S1 semaphore\n"); exit (-1); }
@@ -609,11 +686,14 @@ void semaphores_init()
        
 }
 
-//changes by tanmay------------------------
-/*
- * @brief: initializes camera and starts capturing frames
- * 
- * */
+/************************************************************************************
+ * @brief   :   initialize the camera
+ *              
+ * @param   :   none
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void camera_init()
 {
     //cv::VideoCapture cap(0);
@@ -627,9 +707,17 @@ void camera_init()
     cv::setTrackbarPos("Minimum Area", "Result", 1000);
     cv::setTrackbarPos("Maximum Area", "Result", 100000);
 }
-//-----------------------------------------------------
 
-void sighandler(int sig_no){
+/************************************************************************************
+ * @brief   :   handles signal (in this case, SIGTERM)
+ *              
+ * @param   :   sig_no - macro defined for a specific signal
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
+void sighandler(int sig_no)
+{
 
     cout<<"SIGTERM detected!"<<endl;
     
@@ -643,7 +731,7 @@ void sighandler(int sig_no){
     cout << "For S4: " << service_times[SERVICE_4].total_ci/ctr << endl;
     
         
-    cout << "WCET: " << endl;
+    cout << "\nWorst Case Execution Time: " << endl;
     
     cout << "For S1: " << service_times[SERVICE_1].wcet << endl;
     cout << "For S2: " << service_times[SERVICE_2].wcet << endl;
@@ -653,6 +741,14 @@ void sighandler(int sig_no){
     exit(0);
 }
 
+/************************************************************************************
+ * @brief   :   initializes ultrasonic sensor
+ *              
+ * @param   :   none
+ *
+ * @return  :   none
+ *              
+*************************************************************************************/
 void udm_init()
 {
         if(gpioInitialise() < 0){
@@ -669,6 +765,15 @@ void udm_init()
         }
 }
 
+/************************************************************************************
+ * @brief   :   application entry point
+ *              
+ * @param   :   argc - number of command line arguments
+ *              argv - command line argument as string
+ *
+ * @return  :   zero
+ *              
+*************************************************************************************/
 int main(int argc, char** argv)
 {
     if (argc < 2)
@@ -682,8 +787,6 @@ int main(int argc, char** argv)
         sscanf(argv[1], "%f", &distance_cm);
     }
     
-    //cout << "Distance: " << distance_cm << endl;
-    
     cout << "-----------------------------------------------------------------------" << endl;
     
     cout << "Assuming red light is detected " << distance_cm << " cm from Car's current position:" << endl;
@@ -692,32 +795,24 @@ int main(int argc, char** argv)
     cout << "Total time required for car to come to a full Stop: " << time_to_stop_sec << " seconds" << endl;
     
     computed_deadline = compute_deadline_to_complete_tasks (distance_cm);
-    cout << "Computed deadline for all tasks: " << computed_deadline << " seconds" << endl;
+    cout << "Computed deadline for all tasks: " << computed_deadline/2 << " seconds" << endl;
     cout << "-----------------------------------------------------------------------" << endl;
     
     int i;
-    //~ //for (i=SCHEDULER; i<=SERVICE_2; i++)      
-    //~ //    printf("%d ", i);
 
-    //~ //printf("\n");
-
-    camera_init(); //tanmay
+    camera_init(); 
     
     udm_init();
-    
-    //UART_Init();
     
     configure_service_scheduler();
 
     configure_services();
     
+    //should never come here
     for(i=0;i<NUM_SERVICES;i++)
     {
         pthread_join(threads[i], NULL);
     }
-    //test();
-    
-    printf("\nTEST COMPLETE\n");
 
    return 0;
 }

@@ -1,14 +1,38 @@
+/*
+ * @file_name       :   process.cpp
+ * 
+ * @brief           :   RTES Final Project Code
+ * 
+ * @author          :   Sanish Kharade
+ *                      Tanmay Kothale 
+ *                      Vishal Raj
+ * 
+ * @date            :   May 03, 2022
+ * 
+ * @references      :   1. https://github.com/powergee/TrafficLightDetection
+ * 
+ */
+ 
+/**********************************************************************/
+/*                          LIBRARY FILES                             */
+/**********************************************************************/
 #include <iostream>
 #include <numeric>
 #include <opencv2/opencv.hpp>
-
 #include "process.h"
 #include "capture.h"
 
+/**********************************************************************/
+/*                          GLOBAL VARIABLES                          */
+/**********************************************************************/
 color_t color = NONE;
 
+/**********************************************************************/
+/*               NAMESPACE FOR IO OPERATIONS IN CPP                   */
+/**********************************************************************/
 using namespace std;
 
+/*see documentation in process.h*/
 cv::Mat mask_img(cv::Mat& frame, int h, int error, int s_min, int v_min)
 {
     cv::Mat hsv_img;
@@ -45,6 +69,7 @@ cv::Mat mask_img(cv::Mat& frame, int h, int error, int s_min, int v_min)
     return grey;
 }
 
+/*see documentation in process.h*/
 bool isConvex(Contour& c, double area)
 {
     Contour hull_cntr;
@@ -53,6 +78,7 @@ bool isConvex(Contour& c, double area)
     return abs(hull_area - area) / area <= 0.1;
 }
 
+/*see documentation in process.h*/
 Shape labelPolygon(Contour& c, double area)
 {
     double peri = cv::arcLength(c, true);
@@ -65,6 +91,7 @@ Shape labelPolygon(Contour& c, double area)
     return Shape::Undefined;
 }
 
+/*see documentation in process.h*/
 std::vector<Contour> findShapes(Shape shapeToFind, cv::Mat& grey, int min_area, int max_area)
 {
     std::vector<Contour> contours;
@@ -87,6 +114,7 @@ std::vector<Contour> findShapes(Shape shapeToFind, cv::Mat& grey, int min_area, 
     return found;
 }
 
+/*see documentation in process.h*/
 void setColor(int c)
 {
     
@@ -110,11 +138,13 @@ void setColor(int c)
     }
 }
 
+/*see documentation in process.h*/
 color_t getColor(void)
 {
     return color;
 }
 
+/*see documentation in process.h*/
 void process_image(int min_area, int max_area)
 {    
      cv::Mat redMasked = mask_img(frame, 0, 15, 180, 128);

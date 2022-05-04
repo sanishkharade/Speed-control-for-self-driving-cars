@@ -1,5 +1,20 @@
+/*
+ * @file_name       :   calculate.cpp
+ * 
+ * @brief           :   RTES Final Project Code
+ * 
+ * @author          :   Sanish Kharade
+ *                      Tanmay Kothale 
+ *                      Vishal Raj
+ * 
+ * @date            :   May 03, 2022
+ * 
+ */
+ 
+/*LIBRARY FILES*/
 #include "calculate.h"
 
+/*see documentation in calculate.h*/
 float time_to_stop_in_sec(float speed, float distance)
 {
 	float deadline; 
@@ -9,6 +24,7 @@ float time_to_stop_in_sec(float speed, float distance)
 	return deadline;
 }
 
+/*see documentation in calculate.h*/
 float compute_deadline_to_complete_tasks (float distance)
 {
 	float deadline, time_to_stop, deadline_for_tasks;

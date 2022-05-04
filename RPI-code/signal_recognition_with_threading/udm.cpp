@@ -1,21 +1,42 @@
+/*
+ * @file_name       :   udm.cpp
+ * 
+ * @brief           :   RTES Final Project Code
+ * 
+ * @author          :   Sanish Kharade
+ *                      Tanmay Kothale 
+ *                      Vishal Raj
+ * 
+ * @date            :   May 03, 2022
+ * 
+ * @references	    : 	https://github.com/undqurek/RaspberryPI_UltrasonicRangeFinder	
+ */
+ 
+/**********************************************************************/
+/*                          LIBRARY FILES                             */
+/**********************************************************************/
 #include <pigpio.h>
 #include <iostream>
 #include <time.h>
 #include "udm.h"
 #include <signal.h>
-
 #include <stdlib.h>
 #include <sys/time.h>
 #include <unistd.h>
 
+/**********************************************************************/
+/*                  PRIVATE MACROS AND DEFINES                        */
+/**********************************************************************/
 #define TRIG 	23
 #define ECHO 	24
 #define speed 	17150
 
-
+/**********************************************************************/
+/*               NAMESPACE FOR IO OPERATIONS IN CPP                   */
+/**********************************************************************/
 using namespace std;
 
-
+//to get current time
 struct timeval tv;
 
 double get_instant()
@@ -25,13 +46,23 @@ double get_instant()
     return (double)tv.tv_sec + (double)tv.tv_usec * 0.000001;
 }
 
-
+/*see documentation in udm.h*/
 void init_udm()
 {
     gpioSetMode(TRIG, PI_OUTPUT);
     gpioSetMode(ECHO, PI_INPUT);
 }
 
+
+/************************************************************************************
+ * @brief   :   creates a delay
+ *              
+ * @param   :   value	-	time for which delay is requested
+ * 		limit	-	max limit is 1 msec
+ *
+ * @return  :   true on success, false on failure
+ *              
+*************************************************************************************/
 bool delay(int value, int limit = 1000000)
 {
     for(int i = 0; gpioRead(ECHO) == value; ++i)
@@ -43,6 +74,7 @@ bool delay(int value, int limit = 1000000)
     return true;
 }
 
+/*see documentation in udm.h*/
 double get_distance()
 {
     gpioWrite(TRIG, 0);
@@ -68,43 +100,3 @@ double get_distance()
 
     return 0.0 / 0.0;
 }
-
-/*
-void sighandler(int sig_no){
-
-    cout<<"SIGTERM detected!"<<endl;
-    
-    gpioTerminate();
-    
-    exit(sig_no);
-}
-
-
-int main () 
-{
-    
-	//signal(SIGINT, sighandler);
-	
-	if(gpioInitialise() < 0){
-		cout << "pigpio initialisation failed" << endl;
-		signal(SIGINT, sighandler); 
-	}
-	else
-	{
-		signal(SIGINT, sighandler);
-		cout << "pigpio initialisation ok" << endl;
-
-        	init_udm();
-
-	        for(int i = 0; true; ++i)
-		{
-            		double distance = get_distance();
-		
-	        	cout << i << " distance: " << distance << "cm" << endl;
-		}
-	}
-
-	gpioTerminate();
-
-	return 0; 
-}*/

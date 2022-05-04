@@ -1,3 +1,22 @@
+/*
+ * @file_name       :   capture.cpp
+ * 
+ * @brief           :   RTES Final Project Code
+ * 
+ * @author          :   Sanish Kharade
+ *                      Tanmay Kothale 
+ *                      Vishal Raj
+ * 
+ * @date            :   May 03, 2022
+ * 
+ * @references      :   1. https://github.com/powergee/TrafficLightDetection
+ *                      2. http://mercury.pr.erau.edu/~siewerts/cec450/code/sequencer_generic/seqgen.c
+ * 
+ */
+ 
+/**********************************************************************/
+/*                          LIBRARY FILES                             */
+/**********************************************************************/
 #include <iostream>
 #include <numeric>
 #include <opencv2/opencv.hpp>
@@ -5,12 +24,18 @@
 #include "process.h"
 #include "capture.h"
 
+/**********************************************************************/
+/*               NAMESPACE FOR IO OPERATIONS IN CPP                   */
+/**********************************************************************/
 using namespace std;
 
+/**********************************************************************/
+/*                  EXTERN GLOBAL VARIABLES                           */
+/**********************************************************************/
 cv::Mat frame;
-
 bool frame_flag = false;
 
+/*see documentation in capture.h*/
 int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
 {
       int dt_sec=stop->tv_sec - start->tv_sec;
@@ -72,6 +97,7 @@ int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delt
       return(OK);
 }
 
+/*see documentation in capture.h*/
 void capture_frame(cv::VideoCapture cap)
 {
     
