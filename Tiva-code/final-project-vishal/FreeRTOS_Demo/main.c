@@ -58,10 +58,15 @@
 #define TIMER_FREQ                 2500
 #define CLOCK_FREQ                 120000000
 #define TIMER_LOAD_VALUE           (CLOCK_FREQ/SCALING_FACTOR)
+
+#define SPEED_FOR_RED       0
+#define SPEED_FOR_YELLOW    4
+#define SPEED_FOR_GREEN     6
+
 uint32_t ui32Period,pom = 0;
 
 
-// Demo Task declarations
+//Task and function prototypes
 void LEDTask(void *pvParameters);
 void SerialTask(void *pvParameters);
 void MOTORTask(void *pvParameters);
@@ -404,13 +409,13 @@ void pwm_control(void){
         xStartTime = TimerValueGet(TIMER0_BASE, TIMER_A);;
 
         if(queueData == RED)
-            run_motor_speed(0);
+            run_motor_speed(SPEED_FOR_RED);
         else if(queueData == YELLOW)
-            run_motor_speed(4);
+            run_motor_speed(SPEED_FOR_YELLOW);
         else if(queueData == GREEN)
-            run_motor_speed(6);
+            run_motor_speed(SPEED_FOR_GREEN);
         else
-            run_motor_speed(6);
+            run_motor_speed(SPEED_FOR_GREEN);
 
         /*End time log*/
         xEndTime = TimerValueGet(TIMER0_BASE, TIMER_A);;
