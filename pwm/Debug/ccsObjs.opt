@@ -1,1 +1,0 @@
-"./pwm_dead_band.obj" "./startup_ccs.obj" "./drivers/pinout.obj" "./utils/uartstdio.obj" "../pwm_dead_band_ccs.cmd" -l"C:/ti/TivaWare_C_Series-2.2.0.295/driverlib/ccs/Debug/driverlib.lib" -llibc.a 
